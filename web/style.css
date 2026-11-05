@@ -20,3 +20,42 @@ html[lang=ar]{font-family:Cairo,DM,sans-serif}html[lang=ar] h1,html[lang=ar] h2,
 @media(max-width:1150px){[dir=rtl] .explore-main{padding:35px 35px 40px 25px}[dir=rtl] .map-wrap{padding:20px 0 20px 20px}.header-right{gap:14px}}
 @media(max-width:760px){.brand{font-size:22px;letter-spacing:-1.1px;gap:8px}.brand img{width:31px;height:31px}.header-right{gap:10px}.language-picker{font-size:11px;min-height:35px;max-width:68px}.header{padding-inline:20px}.card-badge{font-size:7px}.header-right .avatar{width:34px;height:34px}.hero h1{font-size:39px;letter-spacing:-1.7px}.hero-asterisk{width:29px;height:29px}.booking-options{align-items:stretch}.booking-options button{line-height:1.7}.section-line{gap:8px}.section-line h2{font-size:17px}.sort-select{max-width:103px}[dir=rtl] .explore-main{padding:20px 23px 115px}[dir=rtl] .map-wrap{padding:0}html[lang=ar] .hero h1{font-size:35px;line-height:1.65}html[lang=ar] .hero-copy{font-size:12px}html[lang=ar] .eyebrow{font-size:9px}html[lang=ar] .map-note p{line-height:1.9}html[lang=ar] .card-title{font-size:11px}.card-price{white-space:nowrap}.cover-label{font-size:8px}.sheet h2{padding-inline-end:20px}html[lang=ar] .sheet h2{font-size:23px}.booking-card{max-width:100%}.booking-amount bdi{white-space:nowrap}}
 @media(max-width:370px){.brand{font-size:18px;gap:6px}.brand img{width:28px;height:28px}.header-right{gap:7px}.language-picker{max-width:60px;padding:7px 4px}.header{padding-inline:17px}.card-footer{flex-wrap:wrap;gap:5px}.city-picker{max-width:90px}.search-box{gap:7px}.section-line h2{font-size:15px}.sort-select{max-width:95px}.hero h1{font-size:35px}.hero-asterisk{display:none}html[lang=ar] .hero h1{font-size:30px}[dir=rtl] .explore-main{padding-inline:18px}.about-brand strong{font-size:23px}.demo-banner{letter-spacing:0;font-size:8px}.demo-note{max-width:70vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+
+/* The map is a screen in the app layout, rather than a fixed overlay whose
+   offsets assume a particular header, system bar or keyboard height. */
+html:not([lang=ar]) .hero h1{font-family:DM,Manrope,sans-serif;font-weight:750}
+.hero h1 .hero-accent{font-family:inherit;font-style:normal;font-weight:750;color:var(--orange);letter-spacing:inherit}
+@media(max-width:760px){
+ body.map-open{
+  display:flex;flex-direction:column;height:var(--app-viewport-height,100dvh);
+  min-height:0;overflow:hidden;overscroll-behavior:none;
+ }
+ body.map-open>.demo-banner,body.map-open>.connection,body.map-open>.header{flex-shrink:0}
+ body.map-open>.header{width:100%;margin:0}
+ body.map-open>main{flex:1 1 0;min-height:0;width:100%;margin:0;overflow:hidden}
+ body.map-open .explore-layout{height:100%;min-height:0}
+ body.map-open .explore-main{display:none}
+ body.map-open .map-wrap{
+  display:block;position:relative;inset:auto;width:100%;height:100%;min-height:0;padding:0;z-index:auto;
+ }
+ body.map-open .map-surface{height:100%;min-height:0;border:0;border-radius:0}
+ body.map-open>.bottom-nav{
+  position:relative;inset:auto;flex:0 0 auto;width:100%;
+  height:calc(72px + env(safe-area-inset-bottom,0px));
+ }
+ body.map-open .map-toggle{
+  position:absolute;inset:auto auto 25px 50%;transform:translateX(-50%);
+  z-index:500;min-height:44px;max-width:calc(100% - 40px);margin:0;
+  background:var(--ink);color:white;white-space:nowrap;
+ }
+ body.map-open .map-note{inset-inline:15px;bottom:90px;padding:14px 16px}
+ body.map-open .map-note p{line-height:1.7}
+ body.map-open .map-label{max-width:calc(100% - 82px);padding:10px 12px}
+ body.map-open .map-retry{max-width:calc(100% - 86px)}
+ body.map-open .mobile-map-top{display:flex;position:absolute;top:15px;right:15px;z-index:450;align-items:center;justify-content:center;background:#fff;border-radius:12px;width:40px;height:40px;box-shadow:var(--shadow)}
+ body.map-open .toast{bottom:calc(85px + env(safe-area-inset-bottom,0px))}
+}
+@media(max-width:760px) and (max-height:580px){
+ body.map-open .map-note{display:none}
+ body.map-open .map-toggle{bottom:20px}
+}

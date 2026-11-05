@@ -47,17 +47,31 @@ public class MainActivity extends Activity {
         setContentView(root);
         root.setOnApplyWindowInsetsListener((view,insets) -> {
             if (Build.VERSION.SDK_INT >= 30) {
-                android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+                int handled = android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout();
+                android.graphics.Insets bars = insets.getInsets(handled);
                 view.setPadding(bars.left,bars.top,bars.right,bars.bottom);
-            } else {
-                view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
+                // Native padding already protects these edges. Send zero values to
+                // WebView while still forwarding keyboard and future inset updates.
+                return new android.view.WindowInsets.Builder(insets)
+                    .setInsets(handled, android.graphics.Insets.NONE)
+                    .setDisplayCutout(null)
+                    .build();
             }
-            return insets;
+            view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
+            if (Build.VERSION.SDK_INT >= 29) {
+                return new android.view.WindowInsets.Builder(insets)
+                    .setSystemWindowInsets(android.graphics.Insets.NONE)
+                    .setStableInsets(android.graphics.Insets.NONE)
+                    .setDisplayCutout(null)
+                    .build();
+            }
+            android.view.WindowInsets forwarded = insets.replaceSystemWindowInsets(0,0,0,0).consumeStableInsets();
+            return Build.VERSION.SDK_INT >= 28 ? forwarded.consumeDisplayCutout() : forwarded;
         });
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true); // Required only for our same-origin application.
         settings.setDomStorageEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.2.0 Android");
+        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.2.1 Android");
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);

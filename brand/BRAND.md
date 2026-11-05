@@ -12,7 +12,7 @@ Selected app name: **GarageShare**. Tagline: **A place for your car.**
 | Soft sage | `#E5EDE1` | Secondary surfaces and notices |
 | Quiet grey | `#737D74` | Supporting text |
 
-Typography: Manrope for brand and headings; DM Sans for body and controls. Both fonts are bundled with their license files under `web/assets/vendor/fonts`.
+Typography: Manrope for the wordmark and section headings; DM Sans for the upright discovery headline, body and controls. Both fonts are bundled with their license files under `web/assets/vendor/fonts`.
 
 Voice: short, useful and calm. Show the complete price and period together. Use “sample” for preview data, “in review” for an unpublished listing, and “confirmed” only when a reservation actually blocks availability. Do not add verification, insurance or rating badges without the corresponding evidence and functionality.
 

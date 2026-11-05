@@ -13,6 +13,8 @@ An original Android garage marketplace for Morocco, rebuilt from the GarageShare
 
 Install `dist/GarageShare-preview.apk` on Android 8 or newer with an up-to-date Android System WebView. Android will ask you to allow installation from the app opening the APK. This is a development-signed preview, not a Play Store release.
 
+Preview **0.2.1** fixes the mobile map's bottom controls and Android system-bar spacing, keeps nearby price pins centered when the view resizes, and replaces the italic discovery headline with upright DM Sans. The APK uses the same preview signing certificate and can update version 0.2.0 without resetting saved preview data.
+
 The APK bundles the interface, fonts (including Cairo for Arabic), and fictional garage images. Use the header language selector for **Français**, **العربية** (RTL), or English. The choice is saved on the device. It works without an account or server. Map tiles require internet. All bookings, offers, host responses, and approvals in this preview are simulations stored only on the device. Nothing is paid or reserved in real life.
 
 Try these flows:

@@ -12,3 +12,4 @@ dist/*
 !dist/GarageShare-preview.apk
 !dist/ui-validation.json
 !dist/locale-validation.json
+!dist/map-layout-validation.json
