@@ -1,0 +1,23 @@
+{
+  "checks": [
+    "Explore loads four sample garages",
+    "Mobile layout has no horizontal overflow",
+    "Map displays four interactive price pins",
+    "Online map tiles render",
+    "Saved garages remain in the shortlist",
+    "Monthly search uses the monthly rate",
+    "Garage detail sheet opens",
+    "Offer appears as requested",
+    "Guest accepts host counter at the agreed price",
+    "Conflicting preview booking shows a clear error",
+    "Cancellation updates the trip",
+    "Host entrance is selected on the map",
+    "Host listing stays pending review",
+    "User-supplied markup is displayed as text",
+    "Preview moderation publishes the sample listing",
+    "Host sends a counter offer",
+    "Small-screen layout has no horizontal overflow",
+    "No uncaught browser errors"
+  ],
+  "errors": []
+}

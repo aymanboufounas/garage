@@ -1,0 +1,66 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+(async()=>{
+ const {makeApp}=await import('../server/app.mjs');
+ const port=Number(process.env.LOCALE_UI_PORT||3006),base=`http://127.0.0.1:${port}`;
+ const app=makeApp({demo:true,database:':memory:',origin:base});await new Promise(r=>app.server.listen(port,'0.0.0.0',r));
+ const {translationCatalog}=await import('../web/i18n.js');
+ const text=(key,lang)=>translationCatalog[key][lang==='fr'?1:2];
+ const out=path.resolve(__dirname,'../dist');fs.mkdirSync(out,{recursive:true});
+ let browser;const checks=[],errors=[];
+ const check=(name,condition)=>{assert.ok(condition,name);checks.push(name);};
+ try{
+  const args=['--no-sandbox','--disable-dev-shm-usage'];if(process.env.BROWSER_SINGLE_PROCESS==='1')args.push('--single-process','--no-zygote');if(process.env.BROWSER_EXTRA_ARGS)args.push(...JSON.parse(process.env.BROWSER_EXTRA_ARGS));
+  browser=await chromium.launch({headless:true,args,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});
+  const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2});
+  await context.route('https://tile.openstreetmap.org/**',route=>route.abort());
+  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+  for(const lang of ['fr','ar']){
+   await page.goto(base);await page.locator('.garage-card').first().waitFor();
+   await page.evaluate(()=>{localStorage.removeItem('garageshare-preview-v1');localStorage.removeItem('garageshare-saved');});await page.reload();await page.locator('.garage-card').first().waitFor();
+   await page.locator('#language').selectOption(lang);
+   check(lang+': language and direction',await page.locator('html').getAttribute('lang')===lang&&await page.locator('html').getAttribute('dir')===(lang==='ar'?'rtl':'ltr'));
+   check(lang+': translated navigation',(await page.locator('.bottom-nav').innerText()).includes(text('trips',lang)));
+   check(lang+': renamed brand',(await page.locator('.brand').innerText()).includes('GarageShare'));
+   await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:path.join(out,lang+'-explore.png')});
+   await page.setViewportSize({width:320,height:740});
+   check(lang+': 320 px fits horizontally',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.setViewportSize({width:390,height:844});
+   await page.locator('[data-action="save"]').first().click();
+   const saved=await page.evaluate(()=>localStorage.getItem('garageshare-saved'));
+   await page.reload();await page.locator('.garage-card').first().waitFor();
+   check(lang+': saved language persists',await page.locator('#language').inputValue()===lang);
+   await page.locator('.bottom-nav [data-page="saved"]').click();check(lang+': saved listing remains',await page.locator('.garage-card').count()===1);
+   await page.locator('.bottom-nav [data-page="explore"]').click();await page.locator('[data-mode="monthly"]').click();await page.locator('.card-image-button').first().click();
+   check(lang+': sample detail is translated',(await page.locator('#sheet-title').innerText()).includes(lang==='fr'?'palmiers':'النخيل'));
+   await page.locator('[data-action="book-form"]').click();await page.screenshot({path:path.join(out,lang+'-booking.png')});
+   check(lang+': booking labels are translated',(await page.locator('#booking-form').innerText()).includes(text('startMorocco',lang)));
+   await page.locator('#booking-submit').click();await page.getByText(text('bookingSuccessTitle',lang),{exact:true}).waitFor();await page.locator('.sheet [data-page="trips"]').click();await page.locator('.status.confirmed').waitFor();
+   check(lang+': monthly booking succeeds',(await page.locator('.booking-amount').innerText()).includes('950'));
+   const before=await page.evaluate(()=>localStorage.getItem('garageshare-preview-v1'));
+   await page.locator('#language').selectOption(lang==='fr'?'ar':'fr');
+   check(lang+': switching languages preserves bookings and favourites',await page.evaluate(()=>localStorage.getItem('garageshare-preview-v1'))===before&&await page.evaluate(()=>localStorage.getItem('garageshare-saved'))===saved);
+   await page.locator('#language').selectOption(lang);await page.locator('.booking-card').waitFor();await page.screenshot({path:path.join(out,lang+'-trip.png')});
+   await page.locator('[data-action="cancel-form"]').click();await page.locator('#cancel-form [type="submit"]').click();await page.locator('.status.cancelled').waitFor();
+   check(lang+': cancellation is localized',(await page.locator('.status.cancelled').textContent())===text('status_cancelled',lang));
+   await page.locator('.bottom-nav [data-page="host"]').click();await page.locator('[data-action="host-form"]').first().click();
+   const form=page.locator('#host-form'),name=lang==='ar'?'مرآب النجمة':'Garage Étoile';
+   await form.locator('[name="name"]').fill(name);await form.locator('[name="area"]').fill(lang==='ar'?'المعاريف':'Maârif');await form.locator('[name="address"]').fill(lang==='ar'?'المدخل الخاص، رقم 42':'Entrée privée, numéro 42');
+   await form.locator('[name="hourly"]').fill('15');await form.locator('[name="monthly"]').fill('1100');await form.locator('[name="height_cm"]').fill('230');await form.locator('[name="description"]').fill(lang==='ar'?'مرآب خاص مغطى للسيارات مع مدخل واسع.':'Garage privé et couvert avec une entrée large.');
+   await form.locator('[type="submit"]').click();await form.locator('.form-error:not([hidden])').waitFor();
+   check(lang+': validation message is localized',(await form.locator('.form-error').innerText())===text('pinRequired',lang));
+   await page.locator('#picker-map').click({position:{x:140,y:70}});await form.locator('[type="submit"]').click();await page.locator('.status.pending').waitFor();
+   check(lang+': host submission retains user content',(await page.locator('.booking-title').innerText())===name);
+   await page.screenshot({path:path.join(out,lang+'-host.png')});
+   await page.locator('[data-action="profile"]').click();await page.locator('[data-action="privacy"]').click();
+   check(lang+': privacy terms are translated',(await page.locator('#sheet-title').innerText())===text('privacyTitle',lang));
+   await page.locator('[data-action="close-modal"]').click();await page.locator('.bottom-nav [data-page="explore"]').click();
+   await page.locator('.map-toggle').click();await page.locator('.map-label').waitFor({state:'visible'});
+   check(lang+': map guidance is translated',(await page.locator('.map-label').innerText())===text('approximate',lang));
+   await page.locator('.map-toggle').click();
+  }
+  check('No uncaught errors in either language',errors.length===0);
+  fs.writeFileSync(path.join(out,'locale-validation.json'),JSON.stringify({passed:checks.length,checks,errors},null,2)+'\n');console.log(JSON.stringify({passed:checks.length,checks,errors},null,2));
+ }finally{if(browser)await browser.close();await new Promise(r=>app.server.close(r));app.db.close();}
+})().catch(e=>{console.error(e.stack);process.exitCode=1;});

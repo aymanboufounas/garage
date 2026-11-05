@@ -1,0 +1,64 @@
+// Shared by the server and browser: API semantics remain stable across languages.
+const messages={
+ 'Something went wrong. Try again.':['Une erreur est survenue. Réessayez.','حدث خطأ. حاول مجددًا.'],
+ 'Failed to fetch':['Connexion impossible. Vérifiez votre connexion.','تعذّر الاتصال. تحقّق من اتصالك.'],
+ 'Your device storage is full or unavailable.':['Le stockage de votre appareil est plein ou indisponible.','مساحة تخزين جهازك ممتلئة أو غير متاحة.'],
+ 'The server could not respond. Try again.':['Le serveur ne répond pas. Réessayez.','الخادم لا يستجيب. حاول مجددًا.'],
+ 'Choose a start time.':['Choisissez une date et une heure de début.','اختر تاريخ ووقت البداية.'],
+ 'This time falls in a clock change. Choose another time.':['Cet horaire tombe pendant un changement d’heure. Choisissez-en un autre.','يقع هذا الوقت أثناء تغيير التوقيت. اختر وقتًا آخر.'],
+ 'This end time falls in a clock change. Choose another start time.':['La fin tombe pendant un changement d’heure. Choisissez un autre début.','تقع النهاية أثناء تغيير التوقيت. اختر بداية أخرى.'],
+ 'Choose hourly or monthly.':['Choisissez une location à l’heure ou au mois.','اختر الإيجار بالساعة أو بالشهر.'],
+ 'Choose a valid start time with a timezone.':['Choisissez un début valide avec un fuseau horaire.','اختر وقت بداية صالحًا مع المنطقة الزمنية.'],
+ 'Choose a valid calendar date and time.':['Choisissez une date et une heure valides.','اختر تاريخًا ووقتًا صالحين.'],
+ 'Choose a start at least one minute ahead, within the next year.':['Choisissez un début dans au moins une minute et dans les douze prochains mois.','اختر بداية بعد دقيقة على الأقل وخلال السنة القادمة.'],
+ 'Choose a start at least one minute ahead.':['Choisissez un début dans au moins une minute.','اختر وقت بداية بعد دقيقة على الأقل.'],
+ 'Choose a valid duration.':['Choisissez une durée valide.','اختر مدة صالحة.'],
+ 'This garage was just booked for that time. Choose another time.':['Ce garage vient d’être réservé pour cet horaire. Choisissez-en un autre.','تم حجز هذا المرآب لهذا الموعد للتو. اختر موعدًا آخر.'],
+ 'This time was just booked. Choose another time.':['Cet horaire vient d’être réservé. Choisissez-en un autre.','تم حجز هذا الموعد للتو. اختر موعدًا آخر.'],
+ 'Your preview already has a booking for this time.':['Votre démo contient déjà une réservation pour cet horaire.','يوجد حجز تجريبي بالفعل لهذا الموعد.'],
+ 'This time is already reserved.':['Cet horaire est déjà réservé.','هذا الموعد محجوز بالفعل.'],
+ 'Your offer must be between 60% and 200% of the listed total.':['Votre offre doit être comprise entre 60 % et 200 % du total affiché.','يجب أن يكون عرضك بين 60٪ و200٪ من الإجمالي المعروض.'],
+ 'Choose a total between 60% and 200% of the listed total.':['Choisissez un total entre 60 % et 200 % du prix affiché.','اختر إجماليًا بين 60٪ و200٪ من السعر المعروض.'],
+ 'Too many requests. Please try again later.':['Trop de demandes. Réessayez plus tard.','طلبات كثيرة. حاول لاحقًا.'],
+ 'Sign in to continue.':['Connectez-vous pour continuer.','سجّل الدخول للمتابعة.'],
+ 'Send JSON.':['Format de requête incorrect.','صيغة الطلب غير صحيحة.'],
+ 'Request too large.':['La demande est trop volumineuse.','حجم الطلب أكبر من المسموح.'],
+ 'Invalid JSON.':['La demande contient des données invalides.','يحتوي الطلب على بيانات غير صالحة.'],
+ 'Send a JSON object.':['Envoyez une demande au format attendu.','أرسل الطلب بالصيغة المطلوبة.'],
+ 'Method not allowed.':['Cette action n’est pas autorisée.','هذا الإجراء غير مسموح.'],
+ 'Request origin is not allowed.':['L’origine de la demande n’est pas autorisée.','مصدر الطلب غير مسموح.'],
+ 'Your session expired. Refresh and try again.':['Votre session a expiré. Actualisez la page et réessayez.','انتهت جلستك. حدّث الصفحة وحاول مجددًا.'],
+ 'This preview uses sample data. Switch to a live installation to create real accounts or bookings.':['Cette démo utilise des données fictives. Les comptes et réservations réels nécessitent le serveur de production.','تستخدم هذه النسخة بيانات تجريبية. تحتاج الحسابات والحجوزات الحقيقية إلى الخادم الفعلي.'],
+ 'Enter a valid email.':['Saisissez une adresse e-mail valide.','أدخل بريدًا إلكترونيًا صالحًا.'],
+ 'Use a password of 12–128 characters.':['Utilisez un mot de passe de 12 à 128 caractères.','استخدم كلمة مرور من 12 إلى 128 حرفًا.'],
+ 'This email cannot be registered. Try signing in.':['Cette adresse ne peut pas être inscrite. Essayez de vous connecter.','لا يمكن تسجيل هذا البريد. جرّب تسجيل الدخول.'],
+ 'Email or password is incorrect.':['L’adresse e-mail ou le mot de passe est incorrect.','البريد الإلكتروني أو كلمة المرور غير صحيحين.'],
+ 'Choose a supported city.':['Choisissez une ville proposée.','اختر مدينة مدعومة.'],
+ 'Check vehicle size and cover.':['Vérifiez la taille du véhicule et le type de couverture.','تحقّق من حجم السيارة ونوع التغطية.'],
+ 'Place your garage pin inside Morocco.':['Placez le repère du garage au Maroc.','ضع علامة المرآب داخل المغرب.'],
+ 'Invalid request key.':['Identifiant de demande invalide.','معرّف الطلب غير صالح.'],
+ 'This garage is unavailable.':['Ce garage est indisponible.','هذا المرآب غير متاح.'],
+ 'You cannot book your own garage.':['Vous ne pouvez pas réserver votre propre garage.','لا يمكنك حجز مرآبك الخاص.'],
+ 'Choose book or propose a price.':['Choisissez de réserver ou de proposer un prix.','اختر الحجز أو اقتراح سعر.'],
+ 'Reservation not found.':['Réservation introuvable.','الحجز غير موجود.'],
+ 'This reservation can no longer be cancelled here.':['Cette réservation ne peut plus être annulée ici.','لم يعد بالإمكان إلغاء هذا الحجز هنا.'],
+ 'This action is not available.':['Cette action n’est pas disponible.','هذا الإجراء غير متاح.'],
+ 'Only the host can counter a new offer.':['Seul l’hôte peut proposer un autre prix pour une nouvelle offre.','يمكن للمضيف فقط اقتراح سعر مقابل لعرض جديد.'],
+ 'Only the other party can accept this offer.':['Seule l’autre personne peut accepter cette offre.','يمكن للطرف الآخر فقط قبول هذا العرض.'],
+ 'This offer expired.':['Cette offre a expiré.','انتهت صلاحية هذا العرض.'],
+ 'This garage is no longer available.':['Ce garage n’est plus disponible.','لم يعد هذا المرآب متاحًا.'],
+ 'Endpoint not found.':['Service introuvable.','الخدمة غير موجودة.'],
+ 'Invalid URL.':['Adresse invalide.','الرابط غير صالح.'],
+ 'Not found.':['Élément introuvable.','العنصر غير موجود.'],
+ 'Service unavailable. Please try again.':['Service indisponible. Réessayez.','الخدمة غير متاحة. حاول مجددًا.']
+};
+const fields={name:['le nom','الاسم'],city:['la ville','المدينة'],area:['le quartier','الحي'],address:['l’adresse','العنوان'],description:['la description','الوصف'],email:['l’e-mail','البريد الإلكتروني'],'garage id':['le garage','المرآب'],'request key':['la demande','الطلب'],'hourly price':['le prix horaire','سعر الساعة'],'monthly price':['le prix mensuel','سعر الشهر'],'entrance height in cm':['la hauteur en cm','الارتفاع بالسنتيمتر'],'number of hours (1–168)':['le nombre d’heures (1–168)','عدد الساعات (1–168)'],'number of months (1–12)':['le nombre de mois (1–12)','عدد الأشهر (1–12)'],'counter offer':['la contre-offre','السعر المقابل'],'offer between 60% and 200% of the listed total':['l’offre, entre 60 % et 200 % du total','العرض بين 60٪ و200٪ من الإجمالي']};
+export function requestLanguage(header){const code=String(header||'en').split(',')[0].trim().split(/[-;]/)[0].toLowerCase();return ['fr','ar'].includes(code)?code:'en';}
+export function localizeError(message,lang='en'){
+ const value=typeof message==='string'?message:'Something went wrong. Try again.';if(lang==='en')return value;
+ const index=lang==='ar'?1:0;if(messages[value])return messages[value][index];
+ const field=/^(?:Check |Choose a valid )(.+)\.$/.exec(value);
+ if(field){const label=fields[field[1]]?.[index];return lang==='ar'?`تحقّق من ${label||'القيمة المدخلة'}.`:`Vérifiez ${label||'la valeur saisie'}.`;}
+ return value; // Already-localized UI validation is preserved.
+}
+export const errorCatalog=messages;

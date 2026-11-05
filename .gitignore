@@ -1,0 +1,14 @@
+data/
+.env
+node_modules/
+*.keystore
+*.jks
+android/.gradle/
+android/local.properties
+android/**/build/
+test-results/
+android/app/src/main/assets/web/
+dist/*
+!dist/GarageShare-preview.apk
+!dist/ui-validation.json
+!dist/locale-validation.json

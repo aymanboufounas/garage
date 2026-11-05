@@ -1,0 +1,16 @@
+{
+  "name": "garageshare",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Hourly and monthly garage rentals: Android app, mobile web app and private booking API",
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "demo": "GARAGESHARE_DEMO=1 node server/index.mjs",
+    "test": "node --test test/*.test.mjs",
+    "admin": "node server/admin.mjs",
+    "android:assets": "node scripts/sync-android.mjs"
+  },
+  "license": "UNLICENSED"
+}

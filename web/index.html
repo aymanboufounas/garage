@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#FBF8F2">
+  <meta name="description" content="Find a garage for an hour or a month. A little space for your car, a little more room for your life.">
+  <title>GarageShare · Une place pour votre voiture</title>
+  <link rel="icon" href="./assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./assets/vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <div id="connection" class="connection" hidden>You're offline. Saved preview data is still available.</div>
+  <div id="demo-banner" class="demo-banner" hidden><span class="demo-dot"></span><span id="demo-title">Démo interactive</span><span id="demo-note" class="demo-note">· garages fictifs, aucune réservation réelle</span></div>
+  <header class="header">
+    <button class="brand" id="home-brand" data-action="navigate" data-page="explore" aria-label="Accueil GarageShare"><img src="./assets/logo.svg" width="38" height="38" alt=""><bdi>GarageShare<span class="brand-dot">.</span></bdi></button>
+    <div class="header-nav"><button id="header-explore" class="header-link active" data-action="navigate" data-page="explore">Trouver un garage</button><button id="header-host" class="header-link" data-action="navigate" data-page="host">Devenir hôte <span>↗</span></button></div>
+    <div class="header-right"><span class="currency" id="header-currency">MAD · Maroc</span><select id="language" class="language-picker" aria-label="Langue"><option value="fr">FR</option><option value="ar">عربي</option><option value="en">EN</option></select><button class="avatar" data-action="profile" aria-label="Votre compte" id="avatar"></button></div>
+  </header>
+  <main id="main" tabindex="-1"><div class="loading"><span class="spinner"></span><p>Making room for you…</p></div></main>
+  <nav class="bottom-nav" aria-label="Main navigation" id="bottom-nav"></nav>
+  <div id="modal-root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript>GarageShare nécessite JavaScript pour afficher la carte et les réservations. يحتاج GarageShare إلى JavaScript لعرض الخريطة والحجوزات.</noscript>
+</body>
+</html>

@@ -1,0 +1,6 @@
+*
+!package.json
+!server/
+!server/**
+!web/
+!web/**
