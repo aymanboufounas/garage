@@ -4,7 +4,7 @@ import { resolve, sep, extname } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import {localizeError,requestLanguage} from '../web/errors.js';
-import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,limit,audit,checkedRequestKey } from './core.mjs';
+import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,limit,audit,checkedRequestKey,hasArrivalAccess } from './core.mjs';
 import { dealsRoute } from './deals.mjs';
 import { staffRole, supportRoute } from './support.mjs';
 import { chatRoute } from './chat.mjs';
@@ -162,9 +162,18 @@ export function makeApp(options={}) {
           return reply(res,{reservations:rows.map(row=>{
             const out={...row};
             // Hosts already know their own entrance. Guests get access information only for a confirmed, ongoing or upcoming stay.
-            if(!host&&(row.status!=='confirmed'||row.ends_at<Date.now())) { delete out.address;delete out.latitude;delete out.longitude; }
+            if(!host&&!hasArrivalAccess(row)) { delete out.address;delete out.latitude;delete out.longitude; }
             delete out.request_key;return out;
           })});
+        }
+        const arrival=path.match(/^\/api\/reservations\/([a-f0-9]{32})\/arrival$/);
+        if(req.method==='GET'&&arrival) {
+          const row=db.prepare(`SELECT r.status,r.ends_at,g.name AS garage_name,g.address,g.latitude,g.longitude
+            FROM reservations r JOIN garages g ON g.id=r.garage_id WHERE r.id=? AND r.guest_id=?`).get(arrival[1],user.id);
+          if(!row)throw new ApiError('Reservation not found.',404);
+          if(!hasArrivalAccess(row))throw new ApiError('Directions are available for confirmed bookings that have not ended.',409);
+          const {garage_name,address,latitude,longitude}=row;
+          return reply(res,{arrival:{garage_name,address,latitude,longitude}});
         }
         if(req.method==='POST'&&path==='/api/reservations') {
           limit(db,`book:${user.id}`,20,15*60000);

@@ -186,6 +186,15 @@ export const repo={
   const now=Date.now();preview.reservations.forEach(r=>{if(['requested','countered'].includes(r.status)&&r.expires_at<=now)r.status='expired';});
   return preview.reservations.filter(r=>host?r.owner_id===demoUser.id:r.guest_id===demoUser.id).slice().reverse();
  },
+ async arrival(id){
+  if(!isDemo)return (await api(`/reservations/${encodeURIComponent(id)}/arrival`)).arrival;
+  const booking=preview.reservations.find(row=>row.id===id&&row.guest_id===demoUser.id);
+  if(!booking)throw new Error('Reservation not found.');
+  if(booking.status!=='confirmed'||booking.ends_at<=Date.now())throw new Error('Directions are available for confirmed bookings that have not ended.');
+  const garage=[...samples,...preview.garages].find(row=>row.id===booking.garage_id);
+  if(!garage)throw new Error('The garage entrance is unavailable.');
+  return {garage_name:localizedField(booking,'name'),latitude:garage.latitude,longitude:garage.longitude,is_demo:true};
+ },
  async reserve(g,data){
   if(!isDemo)return (await api('/reservations','POST',{...data,garage_id:g.id})).reservation;
   if(g.owner_id===demoUser.id)throw new Error('You cannot book your own garage.');

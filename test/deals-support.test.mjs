@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeApp } from '../server/app.mjs';
 import { id, openDatabase } from '../server/core.mjs';
+import { drivingDirections } from '../web/arrival-ui.js';
 
 const ORIGIN = 'http://localhost';
 const PASSWORD = 'Test fixture password only 123!';
@@ -70,6 +71,54 @@ async function setup(t, filename = ':memory:') {
   }
   return { db, client, garage };
 }
+
+test('garage directions are private to the renter while a confirmed booking is active', async t => {
+  const { db, client, garage } = await setup(t);
+  const [renter, host, stranger] = await Promise.all(['Renter', 'Host', 'Stranger'].map(name => client().register(name)));
+  const garageId = await garage(host, 'Arrival fixture');
+  const booking = { garage_id: garageId, mode: 'hourly', units: 2,
+    starts_at: new Date(Date.now() + DAY).toISOString(), request_key: id() };
+  const offer = await renter.call('/reservations', { ...booking, action: 'offer', total_cents: 3600 });
+  assert.equal(offer.status, 201);
+  const reservationId = offer.json.reservation.id;
+  const path = `/reservations/${reservationId}`;
+  const arrival = `${path}/arrival`;
+  assert.equal((await client().call(arrival)).status, 401);
+  assert.equal((await renter.call(arrival)).status, 409);
+  assert.equal((await host.call(`${path}/accept`, {})).status, 200);
+  assert.equal((await stranger.call(arrival)).status, 404);
+  assert.equal((await host.call(arrival)).status, 404);
+  const confirmed = await renter.call(arrival);
+  assert.equal(confirmed.status, 200);
+  assert.match(confirmed.headers.get('cache-control'), /no-store/);
+  assert.deepEqual(confirmed.json, { arrival: {
+    garage_name: 'Arrival fixture', address: 'Private entrance 27, fixture only',
+    latitude: 35.168126, longitude: -2.929126
+  } });
+  assert.equal((await renter.call(`${path}/cancel`, {})).status, 200);
+  assert.equal((await renter.call(arrival)).status, 409);
+
+  const rebooked = await renter.call('/reservations', { ...booking, action: 'book', request_key: id() });
+  assert.equal(rebooked.status, 201);
+  const endedId = rebooked.json.reservation.id;
+  db.prepare('UPDATE reservations SET starts_at=?,ends_at=? WHERE id=?').run(Date.now() - DAY, Date.now() - 1, endedId);
+  assert.equal((await renter.call(`/reservations/${endedId}/arrival`)).status, 409);
+  for (const row of (await renter.call('/reservations')).json.reservations) {
+    assert.equal(row.address, undefined);
+    assert.equal(row.latitude, undefined);
+    assert.equal(row.longitude, undefined);
+  }
+});
+
+test('driving directions target the entrance and let Google Maps choose the origin', () => {
+  const url = new URL(drivingDirections(35.168126, -2.929126));
+  assert.equal(url.origin + url.pathname, 'https://www.google.com/maps/dir/');
+  assert.deepEqual(Object.fromEntries(url.searchParams), {
+    api: '1', destination: '35.168126,-2.929126', travelmode: 'driving', dir_action: 'navigate'
+  });
+  assert.throws(() => drivingDirections(NaN, 0));
+  assert.throws(() => drivingDirections(0, 181));
+});
 
 test('multi-garage bidding authorizes each actor and confirms exactly one agreed quote', async t => {
   const { db, client, garage } = await setup(t);

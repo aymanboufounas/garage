@@ -6,15 +6,23 @@ import { priceRequestForm, guestPriceRequests, hostPriceRequests, selectPriceFor
 import { chatButton, chatInbox, chatMessages, chatSheet } from './chat-ui.js';
 import { availabilityBar, availabilityForm, blockForm, calendarMonth, calendarPanel } from './availability-ui.js';
 import { garageReviewSheet, ratingBadge, stayReviewSheet } from './review-ui.js';
+import { arrivalSheet } from './arrival-ui.js';
 const $=(s,root=document)=>root.querySelector(s),h=(key,params)=>esc(t(key,params));
 const state={page:'explore',city:'Casablanca',mode:'hourly',query:'',filters:new Set(),sort:'recommended',garages:[],priceRequests:[],user:null,demo:false,mapOpen:false,hostTab:'spaces',saved:new Set(),coords:null};
 try{state.saved=new Set(JSON.parse(localStorage.getItem('garageshare-saved')||'[]').filter(x=>typeof x==='string'));}catch{}
 let map=null,markerLayer=null,picker=null,modalGarage=null,bookingKey='',lastFocus=null,renderVersion=0,afterAuth=null,mapScrollY=0;
 const mobileQuery=window.matchMedia('(max-width:760px)');
 let activeChat=null;
+let arrivalMap=null;
+let mapResultKey=null;
+let mapResultBounds=null;
+let fitPending=false;
 let dateSearch=null;
 const hostCalendar={garageId:'',month:moroccoInput(Date.now()).slice(0,7),day:''};
-const mapResizeObserver=typeof ResizeObserver==='undefined'?null:new ResizeObserver(()=>map?.invalidateSize({animate:false}));
+const mapResizeObserver=typeof ResizeObserver==='undefined'?null:new ResizeObserver(()=>{
+ if(fitPending)scheduleMapFit();
+ else map?.invalidateSize({animate:false});
+});
 const main=$('#main'),rate=g=>state.mode==='hourly'?g.hourly_cents:g.monthly_cents,period=()=>t(state.mode==='hourly'?'hour':'month');
 const title=g=>localizedField(g,'name'),amount=cents=>`${money(cents)} ${t('currency')}`;
 const badge=s=>`<span class="status ${esc(s)}">${h('status_'+s)}</span>`;
@@ -36,9 +44,10 @@ function syncViewport(){
 function syncMapView(){
  const open=state.mapOpen&&state.page==='explore'&&mobileQuery.matches;
  document.body.classList.toggle('map-open',open);
- const button=$('.map-toggle'),surface=$('.map-surface'),layout=$('.explore-layout');
- if(button&&surface&&layout){
-  (open?surface:layout).append(button);
+ const button=$('.map-toggle'),surface=$('.map-surface'),toolbar=$('.explore-toolbar');
+ if(button&&surface&&toolbar){
+  const destination=open?surface:toolbar;
+  if(button.parentElement!==destination)destination.append(button);
   button.innerHTML=`${icon(open?'list':'map')}${h(open?'showSpaces':'mapView')}`;
   button.setAttribute('aria-expanded',String(open));
   button.setAttribute('aria-controls','map');
@@ -52,12 +61,12 @@ function setMapOpen(open){
  state.mapOpen=next;syncMapView();
  if(next)window.scrollTo(0,0);
  else if(restore)window.scrollTo(0,mapScrollY);
- requestAnimationFrame(()=>map?.invalidateSize({animate:false}));
+ scheduleMapFit();
 }
 window.addEventListener('resize',syncViewport);
 window.visualViewport?.addEventListener('resize',syncViewport);
 mobileQuery.addEventListener('change',()=>{if(!mobileQuery.matches&&state.mapOpen)setMapOpen(false);else syncMapView();});
-function distance(g){if(!state.coords)return 0;const rad=Math.PI/180,a=(g.latitude-state.coords[0])*rad,b=(g.longitude-state.coords[1])*rad;return a*a+b*b*Math.cos(g.latitude*rad)**2;}
+function distance(g,coords=state.coords){if(!coords)return 0;const rad=Math.PI/180,a=(g.latitude-coords[0])*rad,b=(g.longitude-coords[1])*rad;return a*a+b*b*Math.cos(g.latitude*rad)**2;}
 function visibleGarages(saved=false){
  const source=!saved&&dateSearch?.city===state.city?dateSearch.garages:state.garages;
  let rows=source.filter(g=>saved?state.saved.has(g.id):g.city===state.city);
@@ -75,7 +84,7 @@ function cityOptions(selected){return Object.keys(cityCenters).map(city=>`<optio
 async function render(){
  const version=++renderVersion;updateChrome();if(map){mapResizeObserver?.disconnect();map.remove();map=null;markerLayer=null;}
  if(state.page==='explore'){
-  main.innerHTML=`<div class="explore-layout"><section class="explore-main"><div class="hero"><div class="eyebrow">${h('heroEyebrow')}</div><h1>${h('heroLead')}<br><span class="hero-accent">${h('heroAccent')}</span></h1><svg class="hero-asterisk" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="5"><path d="M30 4v52M4 30h52M12 12l36 36m0-36L12 48"/></svg><p class="hero-copy">${h('heroCopy')}<br>${h('heroCopy2')}</p></div><div class="search-box">${icon('search')}<div class="search-input-wrap"><label class="search-label" for="search">${h('searchLabel')}</label><input id="search" type="search" placeholder="${h('searchPlaceholder')}" value="${esc(state.query)}" autocomplete="off"></div><select class="city-picker" id="city" aria-label="${h('city')}">${cityOptions(state.city)}</select></div><div class="mode-bar"><div class="segmented" aria-label="${h('rentalPeriod')}">${['hourly','monthly'].map(mode=>`<button data-action="mode" data-mode="${mode}" class="${state.mode===mode?'selected':''}" aria-pressed="${state.mode===mode}">${icon(mode==='hourly'?'clock':'calendar')}${h(mode)}</button>`).join('')}</div><button class="near-button" data-action="locate">${icon('locate')}${h('nearMe')}</button></div><div class="filters">${[['covered','roof','covered'],['suv','car','suv'],['budget','money',state.mode==='hourly'?'budgetHourly':'budgetMonthly']].map(([key,i,label])=>`<button class="chip ${state.filters.has(key)?'on':''}" data-action="filter" data-filter="${key}" aria-pressed="${state.filters.has(key)}">${icon(i)}${h(label)}</button>`).join('')}${state.filters.size?`<button class="chip" data-action="clear-filters">${h('clear')}</button>`:''}</div>${availabilityBar(dateSearch)}<div class="price-discovery"><p>${h('dealIntro')}</p><button class="secondary" data-action="price-request">${h('askForOffers')} ${icon('arrow')}</button></div><div class="section-line"><div><h2>${h('spacesTitle')}</h2><span class="small" id="result-count"></span></div><select id="sort" class="sort-select" aria-label="${h('sort')}"><option value="recommended">${h('recommended')}</option><option value="price" ${state.sort==='price'?'selected':''}>${h('lowestPrice')}</option>${state.coords?`<option value="closest" ${state.sort==='closest'?'selected':''}>${h('nearestFirst')}</option>`:''}</select></div><div class="garage-grid" id="garage-grid"></div><div class="footer-note">${icon('leaf')}${h('quietCity')}</div></section><aside class="map-wrap" aria-label="${h('garageMap')}"><div class="map-surface"><div id="map" class="map"></div><div class="map-label">${icon('shield')}${h('approximate')}</div><button class="mobile-map-top" data-action="locate" aria-label="${h('useLocation')}">${icon('locate')}</button><div id="map-retry" class="map-retry" hidden>${h('tileFailure')}</div><div class="map-note"><img src="./assets/logo.svg" alt=""><div><strong>${h('goodSpot')}</strong><p>${h(state.demo?'mapSample':'mapLive')}</p></div></div></div></aside><button class="map-toggle" data-action="toggle-map">${icon(state.mapOpen?'list':'map')}${h(state.mapOpen?'showSpaces':'mapView')}</button></div>`;updateResults();setupMap();syncMapView();
+  main.innerHTML=`<div class="explore-layout"><section class="explore-main"><div class="hero"><div class="eyebrow">${h('heroEyebrow')}</div><h1>${h('heroLead')}<br><span class="hero-accent">${h('heroAccent')}</span></h1><svg class="hero-asterisk" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="5"><path d="M30 4v52M4 30h52M12 12l36 36m0-36L12 48"/></svg><p class="hero-copy">${h('heroCopy')}<br>${h('heroCopy2')}</p></div><div class="search-box">${icon('search')}<div class="search-input-wrap"><label class="search-label" for="search">${h('searchLabel')}</label><input id="search" type="search" placeholder="${h('searchPlaceholder')}" value="${esc(state.query)}" autocomplete="off"></div><select class="city-picker" id="city" aria-label="${h('city')}">${cityOptions(state.city)}</select></div><div class="mode-bar"><div class="segmented" aria-label="${h('rentalPeriod')}">${['hourly','monthly'].map(mode=>`<button data-action="mode" data-mode="${mode}" class="${state.mode===mode?'selected':''}" aria-pressed="${state.mode===mode}">${icon(mode==='hourly'?'clock':'calendar')}${h(mode)}</button>`).join('')}</div><button class="near-button" data-action="locate">${icon('locate')}${h('nearMe')}</button></div><div class="filters">${[['covered','roof','covered'],['suv','car','suv'],['budget','money',state.mode==='hourly'?'budgetHourly':'budgetMonthly']].map(([key,i,label])=>`<button class="chip ${state.filters.has(key)?'on':''}" data-action="filter" data-filter="${key}" aria-pressed="${state.filters.has(key)}">${icon(i)}${h(label)}</button>`).join('')}${state.filters.size?`<button class="chip" data-action="clear-filters">${h('clear')}</button>`:''}</div><div class="explore-toolbar">${availabilityBar(dateSearch)}<button class="map-toggle" data-action="toggle-map">${icon(state.mapOpen?'list':'map')}${h(state.mapOpen?'showSpaces':'mapView')}</button></div><div class="price-discovery"><p>${h('dealIntro')}</p><button class="secondary" data-action="price-request">${h('askForOffers')} ${icon('arrow')}</button></div><div class="section-line"><div><h2>${h('spacesTitle')}</h2><span class="small" id="result-count"></span></div><select id="sort" class="sort-select" aria-label="${h('sort')}"><option value="recommended">${h('recommended')}</option><option value="price" ${state.sort==='price'?'selected':''}>${h('lowestPrice')}</option>${state.coords?`<option value="closest" ${state.sort==='closest'?'selected':''}>${h('nearestFirst')}</option>`:''}</select></div><div class="garage-grid" id="garage-grid"></div><div class="footer-note">${icon('leaf')}${h('quietCity')}</div></section><aside class="map-wrap" aria-label="${h('garageMap')}"><div class="map-surface"><div id="map" class="map"></div><div class="map-label">${icon('shield')}${h('approximate')}</div><button class="mobile-map-top" data-action="locate" aria-label="${h('useLocation')}">${icon('locate')}</button><div id="map-retry" class="map-retry" hidden>${h('tileFailure')}</div><div id="map-empty" class="map-empty" hidden>${h('mapNoResults')}</div><div class="map-note"><img src="./assets/logo.svg" alt=""><div><strong>${h('goodSpot')}</strong><p>${h(state.demo?'mapSample':'mapLive')}</p></div></div></div></aside></div>`;updateResults();setupMap();syncMapView();
  }else if(state.page==='saved'){
   const rows=visibleGarages(true);main.innerHTML=`<section class="page"><div class="eyebrow">${h('shortlistEyebrow')}</div><h1 class="page-title">${h('shortlistTitle')}</h1><p class="page-intro">${h('shortlistCopy')}</p>${rows.length?`<div class="garage-grid">${grid(rows)}</div>`:empty('heart','emptySavedTitle','emptySavedCopy','exploreGarages','explore')}</section>`;
  }else if(state.page==='trips'){
@@ -138,25 +147,101 @@ async function render(){
  }
 }
 function updateResults(){const rows=visibleGarages();$('#garage-grid').innerHTML=grid(rows);$('#result-count').textContent=t(state.demo?'sampleSpaceCount':'spaceCount',{count:new Intl.NumberFormat(locale()).format(rows.length),city:cityName(state.city)});drawMarkers(rows);}
-function setupMap(){if(!globalThis.L){$('#map').innerHTML=`<div class="offline-map"><p>${h('mapUnavailable')}</p></div>`;return;}map=L.map('map',{zoomControl:false,scrollWheelZoom:false}).setView(cityCenters[state.city],13);L.control.zoom({position:'topright',zoomInTitle:t('zoomIn'),zoomOutTitle:t('zoomOut')}).addTo(map);const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);let failed=0;tiles.on('tileerror',()=>{if(++failed>2&&$('#map-retry'))$('#map-retry').hidden=false;});tiles.on('tileload',()=>{if($('#map-retry'))$('#map-retry').hidden=true;});markerLayer=L.layerGroup().addTo(map);drawMarkers(visibleGarages());mapResizeObserver?.observe(map.getContainer());requestAnimationFrame(()=>map?.invalidateSize({animate:false}));}
-function drawMarkers(rows){if(!map||!markerLayer)return;markerLayer.clearLayers();rows.forEach(g=>L.marker([g.latitude,g.longitude],{keyboard:true,title:`${title(g)} · ${amount(rate(g))} / ${period()}`,icon:L.divIcon({html:`<div class="price-marker"><bdi>${esc(amount(rate(g)))}</bdi></div>`,className:'',iconSize:[76,34],iconAnchor:[38,37]})}).addTo(markerLayer).on('click',()=>detail(g)));}
-function showModal(html){stopChat();lastFocus=document.activeElement;if(picker){picker.remove();picker=null;}$('#modal-root').innerHTML=`<div class="modal-overlay"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-handle"></div><button class="sheet-close" data-action="close-modal" aria-label="${h('close')}">${icon('close')}</button>${html}</section></div>`;document.body.style.overflow='hidden';requestAnimationFrame(()=>$('.sheet-close')?.focus({preventScroll:true}));}
-function closeModal(){const refreshInbox=activeChat&&state.page==='messages';stopChat();if(picker){picker.remove();picker=null;}$('#modal-root').innerHTML='';document.body.style.overflow='';if(lastFocus?.isConnected)lastFocus.focus({preventScroll:true});if(refreshInbox)void render();}
+
+function scheduleMapFit() {
+ const current=map;
+ if(!current)return;
+ requestAnimationFrame(()=>{
+  if(map!==current)return;
+  const container=current.getContainer(),height=container.clientHeight,width=container.clientWidth;
+  if(!width||height<120)return;
+  current.invalidateSize({animate:false});
+  if(!fitPending||!mapResultBounds)return;
+  // Leave space for the map labels, zoom controls and the list button.
+  const bottom=Math.min(height*.35,mobileQuery.matches?136:120);
+  current.fitBounds(mapResultBounds,{maxZoom:15,animate:false,
+   paddingTopLeft:[44,Math.min(70,height*.24)],paddingBottomRight:[52,bottom]});
+  fitPending=false;
+ });
+}
+
+function setupMap() {
+ if(!globalThis.L){$('#map').innerHTML=`<div class="offline-map"><p>${h('mapUnavailable')}</p></div>`;return;}
+ map=L.map('map',{zoomControl:false,scrollWheelZoom:false}).setView(cityCenters[state.city],13);
+ L.control.zoom({position:'topright',zoomInTitle:t('zoomIn'),zoomOutTitle:t('zoomOut')}).addTo(map);
+ const retry=$('#map-retry'),tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+ }).addTo(map);
+ let failed=0;
+ tiles.on('tileerror',()=>{if(++failed>2)retry.hidden=false;});
+ tiles.on('tileload',()=>{retry.hidden=true;});
+ markerLayer=L.layerGroup().addTo(map);
+ mapResultKey=null;
+ drawMarkers(visibleGarages());
+ mapResizeObserver?.observe(map.getContainer());
+}
+
+function drawMarkers(rows) {
+ const empty=$('#map-empty');
+ if(empty)empty.hidden=rows.length>0;
+ if(!map||!markerLayer)return;
+ markerLayer.clearLayers();
+ for(const garage of rows){
+  L.marker([garage.latitude,garage.longitude],{
+   keyboard:true,title:`${title(garage)} · ${amount(rate(garage))} / ${period()}`,
+   icon:L.divIcon({html:`<div class="price-marker"><bdi>${esc(amount(rate(garage)))}</bdi></div>`,className:'',iconSize:[76,34],iconAnchor:[38,37]})
+  }).addTo(markerLayer).on('click',()=>detail(garage));
+ }
+ const key=rows.map(g=>`${g.id}:${g.latitude}:${g.longitude}`).sort().join('|');
+ if(mapResultKey!==key){
+  mapResultKey=key;
+  mapResultBounds=rows.length?L.latLngBounds(rows.map(g=>[g.latitude,g.longitude])):null;
+  fitPending=Boolean(mapResultBounds);
+  scheduleMapFit();
+ }
+}
+
+function removeModalMaps() {
+ if(picker){picker.remove();picker=null;}
+ if(arrivalMap){arrivalMap.remove();arrivalMap=null;}
+}
+
+function showModal(html,opener=document.activeElement) {
+ if(!$('.sheet'))lastFocus=opener;
+ stopChat();removeModalMaps();
+ clearTimeout(toast.timer);$('#toast').classList.remove('visible');
+ $('#modal-root').innerHTML=`<div class="modal-overlay"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-handle"></div><button class="sheet-close" data-action="close-modal" aria-label="${h('close')}">${icon('close')}</button>${html}</section></div>`;
+ document.body.style.overflow='hidden';
+ requestAnimationFrame(()=>$('.sheet-close')?.focus({preventScroll:true}));
+}
+
+function closeModal() {
+ const refreshInbox=activeChat&&state.page==='messages';
+ stopChat();removeModalMaps();$('#modal-root').innerHTML='';document.body.style.overflow='';
+ if(lastFocus?.isConnected)lastFocus.focus({preventScroll:true});
+ lastFocus=null;
+ if(refreshInbox)void render();
+}
 function detail(g){modalGarage=g;showModal(`<img class="detail-image" src="${esc(safeImage(g.image))}" alt="${h(g.is_demo?'sampleIllustration':'photoOf',{name:title(g)})}"><div class="sheet-content"><div class="eyebrow">${h(g.is_demo?'detailEyebrowSample':'detailEyebrow')}</div><h2 id="sheet-title">${esc(title(g))}</h2><p class="detail-location">${icon('pin')}${esc(g.area.split('·')[0])} · ${esc(cityName(g.city))}</p><div class="detail-features"><div>${icon(g.covered?'roof':'car')}<strong>${h(g.covered?'covered':'openAir')}</strong><span>${h('parkingType')}</span></div><div>${icon('car')}<strong>${h(g.vehicle_size==='compact'?'compact':g.vehicle_size==='suv'?'suv':'van')}</strong><span>${h('vehicleFit')}</span></div><div>${icon('height')}<strong><bdi>${new Intl.NumberFormat(locale(),{minimumFractionDigits:2}).format(g.height_cm/100)} ${h('metre')}</bdi></strong><span>${h('height')}</span></div></div><p class="detail-description">${esc(localizedField(g,'description'))}</p><div class="service-actions">${ratingBadge(g)}<button class="secondary" data-action="garage-reviews" data-id="${esc(g.id)}">${h('garageReviews')}</button></div><div class="host-line"><div class="host-avatar">${esc(g.owner_name?.[0]||'G')}</div><div><strong>${h('hostedBy',{name:g.owner_name})}</strong><span>${h(g.is_demo?'sampleHost':'pendingIdentity')}</span></div></div><div class="notice">${icon('lock')}<span>${h('entranceNotice')}</span></div><p class="small">${h('cancelPolicy')}</p></div><div class="detail-bottom"><div><strong><bdi>${esc(amount(rate(g)))}</bdi></strong><small>${h('perPeriod',{period:period()})}</small></div><button class="primary" data-action="book-form">${h(state.demo?'tryBooking':'chooseDates')}${icon('arrow')}</button></div>`);}
 function bookingForm(){if(!state.user){auth(false,bookingForm);return;}bookingKey=requestKey();const selected=modalGarage.city===dateSearch?.city?dateSearch:null;const start=selected?.starts_at??Math.ceil((Date.now()+3600000)/3600000)*3600000;const units=selected?.units??(state.mode==='hourly'?3:1);showModal(`<div class="sheet-content"><div class="eyebrow">${h(state.demo?'bookingEyebrowSample':'bookingEyebrow')}</div><h2 id="sheet-title">${h('bookingTitle')}</h2><p class="detail-location">${esc(title(modalGarage))} · ${esc(cityName(modalGarage.city))}</p><form id="booking-form" class="form"><div class="two-fields"><label class="field">${h('startMorocco')}<input type="datetime-local" name="start" value="${moroccoInput(start)}" min="${moroccoInput(Date.now()+60000)}" required></label><label class="field">${h(state.mode==='hourly'?'hours':'months')}<input type="number" name="units" min="1" max="${state.mode==='hourly'?168:12}" step="1" value="${units}" required></label></div><div class="booking-options"><button type="button" class="secondary selected" data-action="booking-type" data-type="book">${h('bookListed')}</button><button type="button" class="secondary" data-action="booking-type" data-type="offer">${h('propose')}</button></div><input type="hidden" name="type" value="book"><label class="field" id="offer-field" hidden>${h('offerTotal')}<input name="offer" type="number" step="1" min="1" inputmode="numeric"><small>${h('fairOfferHint')}</small></label><div class="price-summary" id="price-summary"></div><div class="notice">${icon('shield')}<span>${h(state.demo?'practiceNotice':'arrivalNotice')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit" id="booking-submit">${h(state.demo?'confirmPreview':'confirmBooking')}${icon('arrow')}</button><p class="form-footer">${state.mode==='monthly'?h('calendarBilling')+' ':''}${h('timePolicy')}</p></form></div>`);updateQuote();}
 function quote(){const form=$('#booking-form');if(!form)return null;const data=new FormData(form),start=fromMoroccoInput(data.get('start')),units=Number(data.get('units'));if(!Number.isInteger(units)||units<1||units>(state.mode==='hourly'?168:12))throw new Error(localizeError('Choose a valid duration.',language()));return {starts_at:new Date(start).toISOString(),end:endAt(start,units,state.mode),units,mode:state.mode,action:data.get('type'),total_cents:Math.round(Number(data.get('offer'))*100),listed:rate(modalGarage)*units};}
 function updateQuote(){try{const q=quote();if(!q)return;$('#price-summary').innerHTML=`<div class="summary-line"><span>${esc(amount(rate(modalGarage)))} × ${esc(duration(q.units,state.mode))}</span><bdi>${esc(amount(q.listed))}</bdi></div><div class="summary-line"><span>${h('platformFee')}</span><bdi>${esc(amount(0))}</bdi></div><div class="summary-line muted"><span>${h('ends',{date:dateLabel(q.end)})}</span><span>${h('moroccoTime')}</span></div><div class="summary-line total"><span>${h(q.action==='offer'?'yourOffer':'totalArrival')}</span><bdi>${esc(amount(q.action==='offer'?q.total_cents:q.listed))}</bdi></div>`;const offer=$('[name="offer"]');offer.min=Math.ceil(q.listed*.6/100);offer.max=Math.floor(q.listed*2/100);}catch{$('#price-summary').textContent=t('validQuote');}}
-function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.latitude+','+r.longitude)}" target="_blank" rel="noopener noreferrer">${h('directions')} ↗</a></div>`:''}<div class="booking-actions">${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}${['requested','countered','confirmed'].includes(r.status)?chatButton('reservation',r.id,host?'host':'renter'):''}${r.status==='confirmed'&&r.ends_at<=Date.now()?`<button class="secondary" data-action="stay-review" data-id="${esc(r.id)}">${h('reviewStay')}</button>`:''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
+function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}</div>`:''}<div class="booking-actions">${!host&&r.status==='confirmed'&&r.ends_at>Date.now()?`<button class="primary route-button" data-action="arrival" data-id="${esc(r.id)}">${icon('directions')}${h('directions')}</button>`:''}${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}${['requested','countered','confirmed'].includes(r.status)?chatButton('reservation',r.id,host?'host':'renter'):''}${r.status==='confirmed'&&r.ends_at<=Date.now()?`<button class="secondary" data-action="stay-review" data-id="${esc(r.id)}">${h('reviewStay')}</button>`:''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
 function hostCard(g){return `<article class="booking-card"><img src="${esc(safeImage(g.image))}" alt="${h('photoPending')}"><div class="booking-info">${badge(g.status)}<h3 class="booking-title">${esc(title(g))}</h3><p class="booking-meta">${esc(g.area)} · ${esc(cityName(g.city))}<br><bdi>${esc(amount(g.hourly_cents))}</bdi> / ${h('hour')} · <bdi>${esc(amount(g.monthly_cents))}</bdi> / ${h('month')}</p><div class="booking-actions">${state.demo&&g.status==='pending'?`<button class="secondary" data-action="approve-demo" data-id="${esc(g.id)}">${h('previewApproval')}</button>`:''}</div>${g.status==='pending'?`<p class="small">${h('listingPending')}</p>`:''}</div></article>`;}
 function auth(register=false,callback=null){if(callback)afterAuth=callback;showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p><form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('agreeTerms')} <button type="button" data-action="privacy" class="support-link">${h('privacyTerms')}</button></p></form></div>`);}
 function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:''}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<button class="secondary" data-action="privacy">${icon('shield')}${h('privacyTerms')}</button><button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
 function hostForm(){if(!state.user){auth(true,hostForm);return;}showModal(`<div class="sheet-content"><div class="eyebrow">${h('hostFormEyebrow')}</div><h2 id="sheet-title">${h('hostFormTitle')}</h2><p class="small">${h('privateEntrance')}</p><form id="host-form" class="form"><label class="field">${h('garageName')}<input name="name" placeholder="${h('garageNameHint')}" minlength="3" maxlength="100" required></label><div class="two-fields"><label class="field">${h('city')}<select name="city" id="host-city">${cityOptions(state.city)}</select></label><label class="field">${h('neighbourhood')}<input name="area" placeholder="${h('areaHint')}" minlength="2" maxlength="100" required></label></div><label class="field">${h('address')}<input name="address" placeholder="${h('addressHint')}" minlength="5" maxlength="220" required><small>${h('privateAddressHint')}</small></label><label class="field">${h('placePin')}</label><div class="location-select-map"><div id="picker-map" class="map"></div></div><input type="hidden" name="latitude" value=""><input type="hidden" name="longitude" value=""><span class="small" id="pin-label">${h('pinRequired')}</span><div class="two-fields"><label class="field">${h('hourlyPrice')}<input name="hourly" type="number" min="1" max="1000" step="1" placeholder="12" required></label><label class="field">${h('monthlyPrice')}<input name="monthly" type="number" min="100" max="100000" step="1" placeholder="950" required></label></div><div class="two-fields"><label class="field">${h('vehicleSize')}<select name="vehicle_size"><option value="compact">${h('compact')}</option><option value="suv">${h('carSUV')}</option><option value="van">${h('carVan')}</option></select></label><label class="field">${h('heightCm')}<input name="height_cm" type="number" min="140" max="500" step="1" placeholder="220" required></label></div><label class="field">${h('parkingType')}<select name="covered"><option value="yes">${h('coveredGarage')}</option><option value="no">${h('outdoorSpace')}</option></select></label><label class="field">${h('renterInfo')}<textarea name="description" minlength="10" maxlength="1500" placeholder="${h('descriptionHint')}" required></textarea></label><div class="photo-choice">${icon('camera')}<span>${h('accuratePhotos')}</span></div><div class="notice">${icon('shield')}<span>${h('hostConsent')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(state.demo?'submitPreview':'submitReview')}${icon('arrow')}</button></form></div>`);if(!globalThis.L){$('#pin-label').textContent=t('mapHostUnavailable');return;}picker=L.map('picker-map',{scrollWheelZoom:false}).setView(cityCenters[state.city],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(picker);let pin;picker.on('click',e=>{if(pin)pin.remove();pin=L.marker(e.latlng).addTo(picker);$('[name="latitude"]').value=e.latlng.lat.toFixed(7);$('[name="longitude"]').value=e.latlng.lng.toFixed(7);$('#pin-label').textContent=t('entranceSelected',{coordinates:e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5)});});requestAnimationFrame(()=>picker?.invalidateSize());}
 function privacy(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('privacyEyebrow')}</div><h2 id="sheet-title">${h('privacyTitle')}</h2><div class="privacy-copy">${['Booking','Location','Trust','Preview'].map(section=>`<h3>${h('privacy'+section+'Title')}</h3><p>${h('privacy'+section)}</p>`).join('')}</div></div>`);}
+async function readAvailability({city,starts_at,mode,units}) {
+ const {period,garages}=await repo.availableGarages(city,{starts_at:new Date(starts_at).toISOString(),mode,units});
+ return {...period,city,garages};
+}
+
 async function refreshDateSearch() {
  const current=dateSearch;
  if(!current)return;
- const result=await repo.availableGarages(current.city,{starts_at:new Date(current.starts_at).toISOString(),mode:current.mode,units:current.units});
- if(dateSearch===current)dateSearch={...result.period,city:current.city,garages:result.garages};
+ const result=await readAvailability(current);
+ if(dateSearch===current)dateSearch=result;
 }
 
 async function navigate(page){
@@ -190,6 +275,48 @@ async function openGarageReviews(id) {
  const version=renderVersion,sheet=$('.sheet');
  const reviews=await repo.garageReviews(id);
  if(version===renderVersion&&sheet===$('.sheet'))showModal(garageReviewSheet(title(garage),reviews));
+}
+
+async function openArrival(id,opener) {
+ const version=renderVersion,sheet=$('.sheet');
+ const arrival=await repo.arrival(id);
+ if(version!==renderVersion||sheet!==$('.sheet'))return;
+ showModal(arrivalSheet(arrival),opener);
+ const element=$('#arrival-map'),status=$('#arrival-map-status');
+ if(!globalThis.L){element.hidden=true;status.hidden=false;return;}
+ const point=[arrival.latitude,arrival.longitude];
+ arrivalMap=L.map(element,{scrollWheelZoom:false}).setView(point,arrival.is_demo?15:17);
+ L.circleMarker(point,{radius:9,color:'#fff',weight:3,fillColor:'#ed5835',fillOpacity:1}).addTo(arrivalMap);
+ const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+ }).addTo(arrivalMap);
+ tiles.on('tileerror',()=>{status.hidden=false;});
+ tiles.on('tileload',()=>{status.hidden=true;});
+ const current=arrivalMap;
+ requestAnimationFrame(()=>{if(current===arrivalMap)current.invalidateSize({animate:false});});
+}
+
+function locateNearby(button) {
+ if(!navigator.geolocation){toast(t('locationUnavailable'));return;}
+ button.disabled=true;
+ navigator.geolocation.getCurrentPosition(async position=>{
+  if(!button.isConnected)return;
+  const coords=[position.coords.latitude,position.coords.longitude];
+  const cities=Object.entries(cityCenters).map(([city,[latitude,longitude]])=>({city,latitude,longitude}));
+  const {city}=cities.sort((a,b)=>distance(a,coords)-distance(b,coords))[0];
+  const changed=city!==state.city,current=dateSearch;
+  try{
+   const next=changed&&current?await readAvailability({...current,city}):current;
+   if(!button.isConnected||dateSearch!==current)return;
+   state.coords=coords;state.city=city;state.sort='closest';
+   if(changed){state.query='';dateSearch=next;}
+   await render();toast(t('nearCity',{city:cityName(city)}));
+  }catch(error){
+   if(button.isConnected)toast(localizeError(error.message,language()));
+  }finally{
+   button.disabled=false;
+  }
+ },()=>{button.disabled=false;if(button.isConnected)toast(t('locationUnavailable'));},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
 }
 
 async function openSupportTicket(id) {
@@ -322,6 +449,7 @@ document.addEventListener('click',async event=>{
    if(garage){hostCalendar.garageId=garage.id;state.garages=await repo.garages();await render();}
   }
   else if(a==='garage-reviews')await openGarageReviews(gid);
+  else if(a==='arrival'){button.disabled=true;try{await openArrival(gid,button);}finally{button.disabled=false;}}
   else if(a==='stay-review')await openStayReview(gid);
   else if(a==='review-sample-reply'){
    button.disabled=true;
@@ -386,7 +514,7 @@ document.addEventListener('click',async event=>{
   else if(a==='signout'){await repo.signOut();state.user=null;closeModal();await repo.init();await render();toast(t('signedOut'));}
   else if(a==='reset-confirm')showModal(`<div class="sheet-content"><h2 id="sheet-title">${h('resetTitle')}</h2><p class="page-intro">${h('resetCopy')}</p><button class="danger wide" data-action="reset-demo">${h('resetData')}</button><button class="text-button wide" data-action="close-modal">${h('keepData')}</button></div>`);
   else if(a==='reset-demo'){repo.resetDemo();dateSearch=null;state.saved.clear();try{localStorage.removeItem('garageshare-saved');}catch{}state.garages=await repo.garages();await navigate('explore');toast(t('resetToast'));}
-  else if(a==='locate'){if(!navigator.geolocation){toast(t('locationUnavailable'));return;}button.disabled=true;navigator.geolocation.getCurrentPosition(async pos=>{state.coords=[pos.coords.latitude,pos.coords.longitude];state.city=Object.entries(cityCenters).sort((a,b)=>distance({latitude:a[1][0],longitude:a[1][1]})-distance({latitude:b[1][0],longitude:b[1][1]}))[0][0];state.sort='closest';state.query='';dateSearch=null;await render();toast(t('nearCity',{city:cityName(state.city)}));},()=>{button.disabled=false;toast(t('locationUnavailable'));},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});}
+  else if(a==='locate')locateNearby(button);
  }catch(e){button.disabled=false;toast(localizeError(e.message,language()));}
 });
 document.addEventListener('input',event=>{if(event.target.id==='search'){state.query=event.target.value;updateResults();}if(event.target.closest('#booking-form'))updateQuote();});
@@ -403,9 +531,9 @@ document.addEventListener('submit',async event=>{
   if(form.id==='auth-form'){state.user=await repo.signIn(data,form.dataset.register==='true');closeModal();await render();const cb=afterAuth;afterAuth=null;if(cb)await cb();else toast(t('welcome'));}
   else if(form.id==='availability-form'){
    const city=state.city,mode=state.mode;
-   const result=await repo.availableGarages(city,{starts_at:new Date(fromMoroccoInput(data.start)).toISOString(),mode,units:Number(data.units)});
+   const result=await readAvailability({city,starts_at:fromMoroccoInput(data.start),mode,units:Number(data.units)});
    if(form.isConnected&&state.page==='explore'&&state.city===city&&state.mode===mode){
-    dateSearch={...result.period,city,garages:result.garages};closeModal();await render();
+    dateSearch=result;closeModal();await render();
    }
   }
   else if(form.id==='calendar-block-form'){

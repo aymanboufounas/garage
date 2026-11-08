@@ -1,8 +1,9 @@
 {
-  "passed": 39,
+  "passed": 43,
   "checks": [
     "en: upright headline",
     "en: clean sans serif title",
+    "en: Map is inline above the results heading",
     "en: map button above bottom navigation",
     "en: complete button visible",
     "en: map exactly fills available app area",
@@ -15,6 +16,7 @@
     "en: closing map restores list scroll",
     "fr: upright headline",
     "fr: clean sans serif title",
+    "fr: Map is inline above the results heading",
     "fr: map button above bottom navigation",
     "fr: complete button visible",
     "fr: map exactly fills available app area",
@@ -26,6 +28,7 @@
     "fr: viewport changes preserve the selected map area",
     "fr: closing map restores list scroll",
     "ar: upright headline",
+    "ar: Map is inline above the results heading",
     "ar: map button above bottom navigation",
     "ar: complete button visible",
     "ar: map exactly fills available app area",
@@ -37,6 +40,7 @@
     "ar: viewport changes preserve the selected map area",
     "ar: closing map restores list scroll",
     "viewport resize preserves input focus",
+    "map explains why there are no pins",
     "compact phone height preserves map button",
     "desktop resize exits mobile map layout",
     "no uncaught layout errors"

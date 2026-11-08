@@ -1,5 +1,7 @@
 // Shared by the server and browser: API semantics remain stable across languages.
 const messages={
+ 'Directions are available for confirmed bookings that have not ended.':['L’itinéraire est disponible pour les réservations confirmées en cours ou à venir.','المسار متاح للحجوزات المؤكدة التي لم تنتهِ بعد.'],
+ 'The garage entrance is unavailable.':['L’entrée du garage est indisponible.','مدخل المرآب غير متاح.'],
  'The host has blocked this time. Choose another time.':['L’hôte a bloqué cet horaire. Choisissez un autre créneau.','حجب المضيف هذا الموعد. اختر موعدًا آخر.'],
  'Garage calendar not found.':['Calendrier du garage introuvable.','تقويم المرآب غير موجود.'],
  'Choose a valid end time with a timezone.':['Choisissez une heure de fin valide avec un fuseau horaire.','اختر وقت انتهاء صالحًا مع المنطقة الزمنية.'],

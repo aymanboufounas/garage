@@ -2,7 +2,7 @@
 
 ## Backend
 
-`npm test` completed with **45 passing checks** and zero failures. Coverage includes HTTPS and session security, moderation, private entrances, pricing, concurrent bookings, quote expiry, chat, staff access and ticket privacy. The new tests check calendar ownership, block enforcement, adjacent bookings, review eligibility and review publication.
+`npm test` completed with **47 passing checks** and zero failures. Coverage includes HTTPS and session security, moderation, private entrances, pricing, concurrent bookings, quote expiry, chat, staff access, calendar blocks and reviews. The new checks cover entrance access for confirmed renters, removal after cancellation or completion and construction of the Google Maps driving URL.
 
 These are local integration tests using a temporary SQLite database and real HTTP requests. Test identities use example.com addresses and no email is sent. They are not a penetration test or a production load test.
 
@@ -24,7 +24,7 @@ CI may pass `BROWSER_EXECUTABLE` for an installed Chromium. `BROWSER_SINGLE_PROC
 
 ## Android package
 
-The 0.5.0 preview (version code 6) was compiled from the Java source and bundled web assets with Android SDK Platform 36, Build Tools 36.0.0, Eclipse Java compiler and D8. Zip alignment, APK signature schemes v2 and v3, and the bundled web files were verified. Package metadata confirms `ma.garageshare.app.preview`, minimum API 26, target API 36, INTERNET and optional coarse-location permissions, and the MainActivity launcher. The signing certificate matches the 0.4.0 preview, allowing an in-place update.
+The 0.6.0 preview (version code 7) was compiled from the Java source and bundled web assets with Android SDK Platform 36, Build Tools 36.0.0, Eclipse Java compiler and D8. Zip alignment, APK signature schemes v2 and v3, and the bundled web files were verified. Package metadata confirms `ma.garageshare.app.preview`, minimum API 26, target API 36, INTERNET and optional coarse-location permissions, and the MainActivity launcher. The signing certificate matches the 0.5.0 preview, allowing an in-place update.
 
 The normal Gradle project and wrapper are included for Android Studio. The build runner could not resolve the Gradle Android plugin over its network, so the delivered APK used the included standalone SDK build path. No Gradle build success is claimed.
 
@@ -59,3 +59,7 @@ The 18-check interface workflow, 31 localization checks and 39 map layout checks
 ## GarageShare 0.5.0 calendar and reviews
 
 `node scripts/check-services.cjs` passed **36 browser checks**. The host blocked time in the calendar. The renter's date search omitted that garage and carried the chosen start and duration into the booking form. The first review stayed private, the second revealed both, and the listing displayed the published renter feedback as plain text. The preview exercised calendar blocking, unblocking and sample reviews. The Arabic calendar fit a 320 px viewport. The interface, localization and map layout suites also passed. Physical phone testing remains pending.
+
+## GarageShare 0.6.0 map and arrival
+
+The booking workflow passed **43 browser checks**. It verified the exact entrance address and driving URL, the map tile failure fallback at 320 × 520, the labelled sample destination, and the return of focus when a sheet closes. Near me preserved selected dates when changing cities. The map layout passed **43 checks**, including the inline map control and the empty map message. The 18 smoke checks and 31 localization checks also passed. Google Maps navigation on a physical phone remains untested.

@@ -18,6 +18,8 @@ Money is integer centimes; dates, prices and roles are recomputed or validated o
 
 Public search omits exact addresses and rounds the map coordinates to roughly 400 m precision. This is approximation, not anonymity. Confirmed guests receive exact access information only for upcoming or ongoing stays. Cancellation and the end of the stay remove that information from subsequent guest responses. A recipient can still retain information they have already seen. Host and moderator access is necessary to run the service.
 
+The arrival endpoint checks the renter and booking status on every request and returns a no-store response. Tapping the driving link shares the entrance coordinates with Google Maps. Google Maps obtains the starting location under its own location permissions.
+
 ## Android
 
 The live app accepts only a compile-time HTTPS origin and validates both scheme and exact host before navigation. It blocks cleartext traffic, mixed content, file/content access and third-party cookies. SSL errors are cancelled. The app exposes no JavaScript-to-native interface. Safe Browsing is enabled. WebView remote debugging is enabled only in development builds. Android backups are disabled. Optional coarse location permission is requested only after the user taps Near me.

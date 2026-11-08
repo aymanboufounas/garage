@@ -104,6 +104,9 @@ export function publicGarage(row) {
     review_count:row.review_count||0, rating:row.rating??null
   };
 }
+export function hasArrivalAccess(reservation, now=Date.now()) {
+  return reservation.status==='confirmed' && reservation.ends_at>now;
+}
 export function limit(db,key,max,windowMs,now=Date.now()) {
   const k=hash(key);
   db.prepare('INSERT INTO rate_limits(key,hits,resets_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET hits=CASE WHEN resets_at<=? THEN 1 ELSE hits+1 END,resets_at=CASE WHEN resets_at<=? THEN ? ELSE resets_at END').run(k,now+windowMs,now,now,now+windowMs);

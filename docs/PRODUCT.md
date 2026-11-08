@@ -44,6 +44,10 @@ The account icon opens authentication, privacy and support. Support is also avai
 
 The renter picks dates, an hourly or monthly duration, a proposed total and up to five approved garages in one city. Invited hosts can match the price, send a counter quote or decline. The renter sees the replies with the garage area, vehicle fit and price in Trips. The final selection checks the stored price and current availability in one database transaction, then creates one confirmed reservation. Requests close on selection, cancellation or expiry. Exact entrance information follows confirmation through the existing booking flow.
 
+## Arrival and directions
+
+In Trips, renters can open the entrance map and address for a confirmed upcoming or ongoing booking. The driving button opens Google Maps at the entrance pin placed by the host. Google Maps can use the driver's current location and traffic conditions to suggest a route. The Android preview labels its fictional destination as a sample. [Google Maps directions URLs](https://developers.google.com/maps/documentation/urls/get-started#directions-action)
+
 ## Support
 
 Customers open a ticket from their account or attach a booking they own or host. Staff can search the queue, reply, assign an owner and resolve issues. A customer reply reopens the ticket. The preview includes sample replies for practice on the device.

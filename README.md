@@ -13,7 +13,7 @@ An original Android garage marketplace for Morocco, rebuilt from the GarageShare
 
 Install `dist/GarageShare-preview.apk` on Android 8 or newer with an up-to-date Android System WebView. Android will ask you to allow installation from the app opening the APK. This is a development-signed preview, not a Play Store release.
 
-Preview **0.5.0** adds the host calendar, date-based availability search and reviews for completed bookings. The APK can update the previous GarageShare preview while keeping its saved data.
+Preview **0.6.0** improves the mobile map and adds driving directions from confirmed bookings. The APK can update the previous GarageShare preview while keeping its saved data.
 
 The APK bundles the interface, fonts (including Cairo for Arabic), and fictional garage images. Use the header language selector for **Français**, **العربية** (RTL), or English. The choice is saved on the device. It works without an account or server. Map tiles require internet. All bookings, offers, host responses, and approvals in this preview are simulations stored only on the device. Nothing is paid or reserved in real life.
 
@@ -30,6 +30,7 @@ Try these flows:
 9. In **Trips**, choose **Message host** on a replied offer or booking, send a message and tap **Try a sample reply**. Reopen it from **Messages**.
 10. Open **Host → Calendar**, try a sample calendar, and block a time. In **Explore → Choose dates**, check availability for that period.
 11. In **Trips**, choose **Try a sample completed stay**, submit a rating and try a sample review from the other side.
+12. In **Trips**, open **Get directions** on a confirmed booking. The preview shows a sample pin. Choose **Open sample directions** to try the Google Maps handoff.
 
 ## Run on your computer
 
@@ -61,6 +62,7 @@ Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser p
 | Android | Java Activity with a restricted WebView, bundled preview, native back handling and optional coarse location permission |
 | Discovery | Seven Moroccan cities, neighbourhood search, hourly/monthly prices, filters, sorting, saved spaces, OpenStreetMap/Leaflet map |
 | Reservations | Server-calculated integer prices, calendar-month dates in Africa/Casablanca, conflict prevention, idempotent creation, free cancellation before the start |
+| Arrival | Private entrance map and Google Maps driving directions for the renter of a confirmed upcoming or ongoing booking |
 | Negotiation | Guest offers, host acceptance or counter, guest acceptance, expiry, availability recheck on acceptance |
 | Competing quotes | One hourly or monthly request sent to up to five garages, host replies and counters, price comparison and one final selection |
 | Private chat | Conversation per quote or booking, automatic updates while open, unread counts, quick messages and read receipts |

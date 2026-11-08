@@ -1,4 +1,12 @@
 export const serviceCopy = {
+  arrivalTitle: ['Garage entrance', 'Entrée du garage', 'مدخل المرآب'],
+  arrivalSample: ['Sample route', 'Itinéraire de démonstration', 'مسار تجريبي'],
+  arrivalSampleNote: ['This pin is a sample location for testing directions.', 'Ce repère est un emplacement fictif pour tester l’itinéraire.', 'هذا موقع تجريبي لاختبار إرشادات الطريق.'],
+  arrivalDrive: ['Open driving directions', 'Ouvrir l’itinéraire en voiture', 'افتح مسار القيادة'],
+  arrivalSampleDrive: ['Open sample directions', 'Ouvrir l’itinéraire de démo', 'افتح المسار التجريبي'],
+  arrivalRouteNote: ['Google Maps uses your location and traffic conditions when available.', 'Google Maps utilise votre position et le trafic quand ces informations sont disponibles.', 'يستخدم خرائط Google موقعك وحالة حركة المرور عند توفرهما.'],
+  arrivalMapUnavailable: ['Map preview unavailable. You can still open driving directions.', 'Aperçu indisponible. Vous pouvez ouvrir l’itinéraire en voiture.', 'معاينة الخريطة غير متاحة. يمكنك فتح مسار القيادة.'],
+  mapNoResults: ['No garages match your search. Adjust your filters or dates.', 'Aucun garage ne correspond à votre recherche. Ajustez les filtres ou les dates.', 'لا توجد مرائب مطابقة لبحثك. عدّل عوامل التصفية أو التواريخ.'],
   calendar: ['Calendar', 'Calendrier', 'التقويم'],
   calendarIntro: ['See confirmed stays and block times when your garage is unavailable.', 'Consultez les réservations confirmées et bloquez les créneaux indisponibles.', 'اطّلع على الحجوزات المؤكدة واحجب الأوقات التي لا يتوفر فيها مرآبك.'],
   calendarGarage: ['Garage calendar', 'Calendrier du garage', 'تقويم المرآب'],

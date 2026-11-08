@@ -147,6 +147,27 @@ const path = require('node:path');
     await page.locator('#trip-list .booking-card').waitFor();
     check('Selecting the counter quote creates one booking at 875 DH',
       await page.locator('#trip-list .booking-card').count() === 1 && (await page.locator('.booking-amount').innerText()).includes('875'));
+    const directionsButton = page.locator('#trip-list [data-action="arrival"]');
+    await page.setViewportSize({ width: 320, height: 520 });
+    await directionsButton.click();
+    const directionsLink = page.locator('#arrival-directions');
+    await directionsLink.waitFor();
+    const destination = new URL(await directionsLink.getAttribute('href'));
+    check('Arrival opens driving directions to the exact booked entrance',
+      (await page.locator('.arrival-address').innerText()).trim() === 'Private test entrance Beta' &&
+      destination.pathname === '/maps/dir/' && destination.searchParams.get('destination') === '33.584,-7.632' &&
+      destination.searchParams.get('travelmode') === 'driving' && destination.searchParams.get('dir_action') === 'navigate' &&
+      await directionsLink.getAttribute('target') === null);
+    await page.locator('#arrival-map-status').waitFor();
+    await directionsLink.scrollIntoViewIfNeeded();
+    check('Driving link stays reachable on a small phone when map tiles fail', await directionsLink.evaluate(link => {
+      const box = link.getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight && box.height >= 44;
+    }));
+    await page.locator('.sheet-close').click();
+    check('Closing arrival restores focus to the booking directions button',
+      await directionsButton.evaluate(button => document.activeElement === button));
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#trip-list [data-action="chat-open"]').click();
     await page.locator('#chat-messages').getByText(hostMessage, { exact: true }).waitFor();
     check('Confirmed booking opens the original quote conversation', await page.locator('#chat-messages .chat-message').count() === 2);
@@ -221,11 +242,19 @@ const path = require('node:path');
 
     await signIn('Renter');
     await page.goto(live);
+    await page.locator('#city').selectOption('Nador');
     await action('availability-form').click();
     await page.locator('#availability-form [name="start"]').fill(starts);
     await page.locator('#availability-form [name="units"]').fill('2');
     await submit('#availability-form');
     await action('availability-clear').waitFor();
+    const nearMe = page.locator('.explore-main [data-action="locate"]');
+    await context.grantPermissions(['geolocation'], { origin: live });
+    await context.setGeolocation({ latitude: 33.586, longitude: -7.636 });
+    await nearMe.click();
+    await page.waitForFunction(() => document.querySelector('#city').value === 'Casablanca');
+    await page.locator('.garage-card').waitFor();
+    check('Near me keeps selected dates when changing cities', await action('availability-clear').isVisible());
     check('Date search removes the blocked garage', await page.locator('.garage-card').count() === 1 &&
       (await page.locator('.garage-card').innerText()).includes('Garage Beta'));
     await page.locator('.card-image-button').click();
@@ -233,6 +262,8 @@ const path = require('node:path');
     check('Booking uses the chosen search date and duration', await page.locator('#booking-form [name="start"]').inputValue() === starts &&
       await page.locator('#booking-form [name="units"]').inputValue() === '2');
     await page.locator('.sheet-close').click();
+    check('Closing a booking form returns focus to the original garage card',
+      await page.locator('.card-image-button').evaluate(button => button === document.activeElement));
     await action('availability-clear').click();
     await page.locator('.garage-card').filter({ hasText: 'Garage Alpha' }).waitFor();
     checks.push('Clearing dates restores discovery');
@@ -241,6 +272,9 @@ const path = require('node:path');
     const endOfStay = Date.now() - 86400000;
     app.db.prepare('UPDATE reservations SET starts_at=?,ends_at=? WHERE id=?').run(endOfStay - 31 * 86400000, endOfStay, completed.id);
     await nav('trips');
+    await page.locator('#trip-list .booking-card').waitFor();
+    check('A completed booking no longer shows directions or the private address',
+      await directionsButton.count() === 0 && !(await page.locator('#trip-list').innerText()).includes('Private test entrance'));
     await action('stay-review').click();
     await page.locator('#stay-review-form [name="rating"][value="5"]').check();
     const reviewComment = 'Easy garage access. <img src=x onerror=alert(1)>';
@@ -284,6 +318,11 @@ const path = require('node:path');
     await submit('#price-select-form');
     await page.locator('#trip-list .booking-card').waitFor();
     check('The preview saves the chosen booking', await page.locator('#trip-list .status.confirmed').count() === 1);
+    await directionsButton.click();
+    await directionsLink.waitFor();
+    check('Preview directions label the sample destination',
+      (await directionsLink.innerText()).includes('sample') && await page.locator('.arrival-address').count() === 0);
+    await page.locator('.sheet-close').click();
     await page.locator('#trip-list [data-action="chat-open"]').click();
     await action('chat-prompt').first().click();
     check('A quick message fills the composer', (await page.locator('#chat-form textarea').inputValue()).includes('SUV'));
