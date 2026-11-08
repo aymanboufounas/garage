@@ -1,6 +1,7 @@
 import {endAt} from './icons.js';
 import {language,localizedField} from './i18n.js';
-const emptyPreview=()=>({garages:[],reservations:[],deals:[],tickets:[]});
+import { quoteChatOpen, reservationChatOpen } from './chat-policy.js';
+const emptyPreview=()=>({garages:[],reservations:[],deals:[],tickets:[],chats:[]});
 let csrf='', isDemo=false, preview=emptyPreview(), samples=[];
 const key='garageshare-preview-v1';
 const uid=()=>globalThis.crypto?.randomUUID?.().replaceAll('-','')||Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');
@@ -55,6 +56,46 @@ function previewQuote(garage) {
  };
 }
 
+function previewChatContext(kind, id) {
+ const booking=kind==='reservation'?preview.reservations.find(row=>row.id===id):null;
+ if(kind==='reservation'&&(!booking||![booking.guest_id,booking.owner_id].includes(demoUser.id))) {
+  throw new Error('Conversation not found.');
+ }
+ const deal=kind==='quote'?preview.deals.find(row=>row.quotes.some(q=>q.id===id))
+  :preview.deals.find(row=>row.reservation_id===id);
+ const quote=deal?.quotes.find(q=>kind==='quote'?q.id===id:q.garage_id===booking.garage_id);
+ if(quote){
+  const host=quote.owner_id===demoUser.id;
+  if(!host&&deal.guest_id!==demoUser.id)throw new Error('Conversation not found.');
+  const selected=preview.reservations.find(r=>r.id===deal.reservation_id&&r.garage_id===quote.garage_id);
+  return {kind:'quote',id:quote.id,garage_name:localizedField(quote,'name'),
+   peer_name:host?'Salma':quote.owner_name,role:host?'host':'renter',writable:quoteChatOpen(quote,deal,selected)};
+ }
+ if(!booking)throw new Error('Conversation not found.');
+ const host=booking.owner_id===demoUser.id;
+ return {kind:'reservation',id,garage_name:localizedField(booking,'name'),
+  peer_name:host?localizedField(booking,'guest_name'):booking.owner_name,
+  role:host?'host':'renter',writable:reservationChatOpen(booking)};
+}
+
+function previewChat(context, create=false) {
+ let thread=preview.chats.find(row=>row.kind===context.kind&&row.id===context.id);
+ if(!thread&&create){
+  thread={kind:context.kind,id:context.id,messages:[],updated_at:Date.now()};
+  preview.chats.push(thread);
+ }
+ return thread;
+}
+
+function addPreviewMessage(thread, data) {
+ const now=Date.now();
+ const message={seq:(thread.messages.at(-1)?.seq||0)+1,created_at:now,read_at:null,...data};
+ thread.messages.push(message);thread.updated_at=now;save();
+ return message;
+}
+
+const chatPath=(kind,id)=>`/chat/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`;
+
 export const repo={
  get demo(){return isDemo;},
  async init(){
@@ -65,7 +106,8 @@ export const repo={
    try{
     const stored=JSON.parse(localStorage.getItem(key));
     if(stored&&Array.isArray(stored.garages)&&Array.isArray(stored.reservations)) {
-     preview={...stored,deals:Array.isArray(stored.deals)?stored.deals:[],tickets:Array.isArray(stored.tickets)?stored.tickets:[]};
+     preview={...stored};
+     for(const field of ['deals','tickets','chats'])if(!Array.isArray(preview[field]))preview[field]=[];
     }
    }catch{}
   }
@@ -248,6 +290,52 @@ export const repo={
   const ticket=previewTicket(id),now=Date.now();
   ticket.messages.push({id:uid(),author_kind:'staff',sample:true,created_at:now});
   ticket.status='waiting';ticket.updated_at=now;save();return ticket;
+ },
+ async conversations(){
+  if(!isDemo)return (await api('/chat')).conversations;
+  return preview.chats.slice().sort((a,b)=>b.updated_at-a.updated_at).map(thread=>({
+   ...previewChatContext(thread.kind,thread.id),latest:thread.messages.at(-1),
+   unread:thread.messages.filter(row=>!row.own&&!row.read_at).length
+  }));
+ },
+ async chat(kind,id,{before=0,after=0}={}){
+  if(!isDemo){
+   const query=before?`?before=${before}`:after?`?after=${after}`:'';
+   return api(chatPath(kind,id)+query);
+  }
+  const conversation=previewChatContext(kind,id);
+  const all=previewChat(conversation)?.messages||[];
+  const eligible=before?all.filter(row=>row.seq<before):all;
+  const messages=after?all.filter(row=>row.seq>after).slice(0,60):eligible.slice(-60);
+  const seen=all.findLast(row=>row.own&&row.read_at);
+  return {conversation,messages,has_older:!after&&eligible.length>60,seen_through:seen?.seq||0};
+ },
+ async sendChat(kind,id,data){
+  if(!isDemo)return (await api(chatPath(kind,id)+'/send','POST',data)).message;
+  const context=previewChatContext(kind,id);
+  const existing=previewChat(context)?.messages.find(row=>row.own&&row.request_key===data.request_key);
+  if(existing)return existing;
+  if(!context.writable)throw new Error('This conversation is read-only.');
+  const message=data.message.trim();
+  if(!message||message.length>2000)throw new Error('Check message.');
+  return addPreviewMessage(previewChat(context,true),{own:true,message,request_key:data.request_key});
+ },
+ async readChat(kind,id,through){
+  if(!isDemo)return api(chatPath(kind,id)+'/read','POST',{through});
+  const thread=previewChat(previewChatContext(kind,id));
+  const unread=thread?.messages.filter(row=>!row.own&&!row.read_at&&row.seq<=through)||[];
+  if(unread.length){
+   for(const row of unread)row.read_at=Date.now();
+   save();
+  }
+ },
+ async sampleChatReply(kind,id){
+  if(!isDemo)return;
+  const context=previewChatContext(kind,id);
+  if(!context.writable)throw new Error('This conversation is read-only.');
+  const thread=previewChat(context,true);
+  for(const row of thread.messages)if(row.own&&!row.read_at)row.read_at=Date.now();
+  addPreviewMessage(thread,{own:false,sample:context.role==='host'?'renter':'host'});
  },
  resetDemo(){if(isDemo){preview=emptyPreview();save();}}
 };

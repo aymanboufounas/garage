@@ -13,7 +13,7 @@ An original Android garage marketplace for Morocco, rebuilt from the GarageShare
 
 Install `dist/GarageShare-preview.apk` on Android 8 or newer with an up-to-date Android System WebView. Android will ask you to allow installation from the app opening the APK. This is a development-signed preview, not a Play Store release.
 
-Preview **0.3.0** adds requests for competing garage quotes, a customer support inbox, and a staff dashboard on the live service. The APK can update the previous GarageShare preview while keeping its saved data.
+Preview **0.4.0** adds private renter–host chat from offers and bookings, with a Messages inbox, quick replies and read receipts. The APK can update the previous GarageShare preview while keeping its saved data.
 
 The APK bundles the interface, fonts (including Cairo for Arabic), and fictional garage images. Use the header language selector for **Français**, **العربية** (RTL), or English. The choice is saved on the device. It works without an account or server. Map tiles require internet. All bookings, offers, host responses, and approvals in this preview are simulations stored only on the device. Nothing is paid or reserved in real life.
 
@@ -27,6 +27,7 @@ Try these flows:
 6. Tap the account icon → reset the preview when finished.
 7. Choose **Request prices** in Explore, select garages, and send a total. In Trips, try sample host replies and choose a quote to confirm one booking.
 8. Open **Support** from the account menu or a booking. Create a sample ticket and try a support reply.
+9. In **Trips**, choose **Message host** on a replied offer or booking, send a message and tap **Try a sample reply**. Reopen it from **Messages**.
 
 ## Run on your computer
 
@@ -60,6 +61,7 @@ Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser p
 | Reservations | Server-calculated integer prices, calendar-month dates in Africa/Casablanca, conflict prevention, idempotent creation, free cancellation before the start |
 | Negotiation | Guest offers, host acceptance or counter, guest acceptance, expiry, availability recheck on acceptance |
 | Competing quotes | One hourly or monthly request sent to up to five garages, host replies and counters, price comparison and one final selection |
+| Private chat | Conversation per quote or booking, automatic updates while open, unread counts, quick messages and read receipts |
 | Hosting | Same-account host dashboard, entrance pin, dimensions, two prices, pending listings, reservation and offer management |
 | Support | Private tickets linked to a booking, customer and staff replies, status filters, staff assignment and resolution at `/admin.html` |
 | Moderation | Server-only CLI, accurate-photo requirement before approval, rejection and archival guards |

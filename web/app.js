@@ -3,11 +3,13 @@ import {repo,requestKey} from './data.js';
 import {t,language,setLanguage,locale,cityName,duration,localizedField,applyDocumentLanguage} from './i18n.js';
 import {localizeError} from './errors.js';
 import { priceRequestForm, guestPriceRequests, hostPriceRequests, selectPriceForm, counterPriceForm, supportList, supportTicketForm, supportThread } from './service-ui.js';
+import { chatButton, chatInbox, chatMessages, chatSheet } from './chat-ui.js';
 const $=(s,root=document)=>root.querySelector(s),h=(key,params)=>esc(t(key,params));
 const state={page:'explore',city:'Casablanca',mode:'hourly',query:'',filters:new Set(),sort:'recommended',garages:[],priceRequests:[],user:null,demo:false,mapOpen:false,hostTab:'spaces',saved:new Set(),coords:null};
 try{state.saved=new Set(JSON.parse(localStorage.getItem('garageshare-saved')||'[]').filter(x=>typeof x==='string'));}catch{}
 let map=null,markerLayer=null,picker=null,modalGarage=null,bookingKey='',lastFocus=null,renderVersion=0,afterAuth=null,mapScrollY=0;
 const mobileQuery=window.matchMedia('(max-width:760px)');
+let activeChat=null;
 const mapResizeObserver=typeof ResizeObserver==='undefined'?null:new ResizeObserver(()=>map?.invalidateSize({animate:false}));
 const main=$('#main'),rate=g=>state.mode==='hourly'?g.hourly_cents:g.monthly_cents,period=()=>t(state.mode==='hourly'?'hour':'month');
 const title=g=>localizedField(g,'name'),amount=cents=>`${money(cents)} ${t('currency')}`;
@@ -69,7 +71,7 @@ async function render(){
  }else if(state.page==='saved'){
   const rows=visibleGarages(true);main.innerHTML=`<section class="page"><div class="eyebrow">${h('shortlistEyebrow')}</div><h1 class="page-title">${h('shortlistTitle')}</h1><p class="page-intro">${h('shortlistCopy')}</p>${rows.length?`<div class="garage-grid">${grid(rows)}</div>`:empty('heart','emptySavedTitle','emptySavedCopy','exploreGarages','explore')}</section>`;
  }else if(state.page==='trips'){
-  main.innerHTML=`<section class="page"><div class="eyebrow">${h('tripsEyebrow')}</div><h1 class="page-title">${h('tripsTitle')}</h1><p class="page-intro">${h('tripsCopy')}</p><div id="price-list"></div><div id="trip-list"><div class="loading"><span class="spinner"></span></div></div></section>`;
+  main.innerHTML=`<section class="page"><div class="eyebrow">${h('tripsEyebrow')}</div><h1 class="page-title">${h('tripsTitle')}</h1><p class="page-intro">${h('tripsCopy')}</p><button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><div id="price-list"></div><div id="trip-list"><div class="loading"><span class="spinner"></span></div></div></section>`;
   if(!state.user){$('#trip-list').innerHTML=empty('lock','tripsLoginTitle','tripsLoginCopy','signIn','auth');return;}
   const [trips, prices]=await Promise.allSettled([repo.reservations(),repo.priceRequests()]);
   if(version!==renderVersion)return;
@@ -81,6 +83,14 @@ async function render(){
    const rows=trips.value;
    $('#trip-list').innerHTML=rows.length?rows.map(r=>reservationCard(r,false)).join(''):empty('trip','emptyTripsTitle','emptyTripsCopy','findGarage','explore');
   }else $('#trip-list').innerHTML=errorBox(trips.reason.message);
+ }else if(state.page==='messages'){
+  main.innerHTML=`<section class="page"><h1 class="page-title">${h('chatInbox')}</h1><p class="page-intro">${h('chatIntro')}</p><div id="chat-inbox"></div></section>`;
+  if(!state.user){$('#chat-inbox').innerHTML=empty('chat','chatInbox','chatIntro','signIn','auth');return;}
+  try{
+   const conversations=await repo.conversations();
+   if(version!==renderVersion)return;
+   $('#chat-inbox').innerHTML=`<button class="text-button" data-action="refresh">${h('chatRefresh')}</button>${chatInbox(conversations)}`;
+  }catch(e){if(version===renderVersion)$('#chat-inbox').innerHTML=errorBox(e.message);}
  }else if(state.page==='support'){
   main.innerHTML=`<section class="page"><div class="eyebrow">${h('support')}</div><h1 class="page-title">${h('supportTitle')}</h1><p class="page-intro">${h('supportIntro')}</p><div id="support-list"></div></section>`;
   if(!state.user){$('#support-list').innerHTML=empty('lock','supportTitle','supportIntro','signIn','auth');return;}
@@ -90,7 +100,7 @@ async function render(){
    $('#support-list').innerHTML=`${state.demo?`<p class="small">${h('supportPreview')}</p>`:''}<div class="service-actions"><button class="primary" data-action="support-new">${h('supportNew')} ${icon('plus')}</button><button class="text-button" data-action="refresh">${h('supportRefresh')}</button></div>${supportList(tickets)}`;
   }catch(e){if(version===renderVersion)$('#support-list').innerHTML=errorBox(e.message);}
  }else if(state.page==='host'){
-  main.innerHTML=`<section class="page"><div class="host-hero"><div class="host-copy"><div class="eyebrow">${h('hostEyebrow')}</div><h1>${h('hostLead')}<br>${h('hostAccent')}</h1><p>${h('hostCopy')}</p><button class="primary" data-action="host-form">${h('listGarage')}${icon('plus')}</button></div><div class="host-illustration">${icon('garage')}</div></div><div class="steps">${[1,2,3].map(n=>`<div class="step"><div class="step-num">${n}</div><h3>${h('step'+n)}</h3><p>${h('step'+n+'Copy')}</p></div>`).join('')}</div><div class="host-tabs"><button class="${state.hostTab==='spaces'?'selected':''}" data-action="host-tab" data-tab="spaces">${h('myGarages')}</button><button class="${state.hostTab==='requests'?'selected':''}" data-action="host-tab" data-tab="requests">${h('hostRequests')}</button><button class="${state.hostTab==='prices'?'selected':''}" data-action="host-tab" data-tab="prices">${h('hostPrices')}</button></div><div id="host-list"></div></section>`;
+  main.innerHTML=`<section class="page"><div class="host-hero"><div class="host-copy"><div class="eyebrow">${h('hostEyebrow')}</div><h1>${h('hostLead')}<br>${h('hostAccent')}</h1><p>${h('hostCopy')}</p><button class="primary" data-action="host-form">${h('listGarage')}${icon('plus')}</button></div><div class="host-illustration">${icon('garage')}</div></div><div class="steps">${[1,2,3].map(n=>`<div class="step"><div class="step-num">${n}</div><h3>${h('step'+n)}</h3><p>${h('step'+n+'Copy')}</p></div>`).join('')}</div><button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><div class="host-tabs"><button class="${state.hostTab==='spaces'?'selected':''}" data-action="host-tab" data-tab="spaces">${h('myGarages')}</button><button class="${state.hostTab==='requests'?'selected':''}" data-action="host-tab" data-tab="requests">${h('hostRequests')}</button><button class="${state.hostTab==='prices'?'selected':''}" data-action="host-tab" data-tab="prices">${h('hostPrices')}</button></div><div id="host-list"></div></section>`;
   if(!state.user){$('#host-list').innerHTML=empty('user','hostLoginTitle','hostLoginCopy','createAccount','auth');return;}
   if(state.hostTab==='prices'){
    try{
@@ -105,16 +115,16 @@ async function render(){
 function updateResults(){const rows=visibleGarages();$('#garage-grid').innerHTML=grid(rows);$('#result-count').textContent=t(state.demo?'sampleSpaceCount':'spaceCount',{count:new Intl.NumberFormat(locale()).format(rows.length),city:cityName(state.city)});drawMarkers(rows);}
 function setupMap(){if(!globalThis.L){$('#map').innerHTML=`<div class="offline-map"><p>${h('mapUnavailable')}</p></div>`;return;}map=L.map('map',{zoomControl:false,scrollWheelZoom:false}).setView(cityCenters[state.city],13);L.control.zoom({position:'topright',zoomInTitle:t('zoomIn'),zoomOutTitle:t('zoomOut')}).addTo(map);const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);let failed=0;tiles.on('tileerror',()=>{if(++failed>2&&$('#map-retry'))$('#map-retry').hidden=false;});tiles.on('tileload',()=>{if($('#map-retry'))$('#map-retry').hidden=true;});markerLayer=L.layerGroup().addTo(map);drawMarkers(visibleGarages());mapResizeObserver?.observe(map.getContainer());requestAnimationFrame(()=>map?.invalidateSize({animate:false}));}
 function drawMarkers(rows){if(!map||!markerLayer)return;markerLayer.clearLayers();rows.forEach(g=>L.marker([g.latitude,g.longitude],{keyboard:true,title:`${title(g)} · ${amount(rate(g))} / ${period()}`,icon:L.divIcon({html:`<div class="price-marker"><bdi>${esc(amount(rate(g)))}</bdi></div>`,className:'',iconSize:[76,34],iconAnchor:[38,37]})}).addTo(markerLayer).on('click',()=>detail(g)));}
-function showModal(html){lastFocus=document.activeElement;if(picker){picker.remove();picker=null;}$('#modal-root').innerHTML=`<div class="modal-overlay"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-handle"></div><button class="sheet-close" data-action="close-modal" aria-label="${h('close')}">${icon('close')}</button>${html}</section></div>`;document.body.style.overflow='hidden';requestAnimationFrame(()=>$('.sheet-close')?.focus({preventScroll:true}));}
-function closeModal(){if(picker){picker.remove();picker=null;}$('#modal-root').innerHTML='';document.body.style.overflow='';if(lastFocus?.isConnected)lastFocus.focus({preventScroll:true});}
+function showModal(html){stopChat();lastFocus=document.activeElement;if(picker){picker.remove();picker=null;}$('#modal-root').innerHTML=`<div class="modal-overlay"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-handle"></div><button class="sheet-close" data-action="close-modal" aria-label="${h('close')}">${icon('close')}</button>${html}</section></div>`;document.body.style.overflow='hidden';requestAnimationFrame(()=>$('.sheet-close')?.focus({preventScroll:true}));}
+function closeModal(){const refreshInbox=activeChat&&state.page==='messages';stopChat();if(picker){picker.remove();picker=null;}$('#modal-root').innerHTML='';document.body.style.overflow='';if(lastFocus?.isConnected)lastFocus.focus({preventScroll:true});if(refreshInbox)void render();}
 function detail(g){modalGarage=g;showModal(`<img class="detail-image" src="${esc(safeImage(g.image))}" alt="${h(g.is_demo?'sampleIllustration':'photoOf',{name:title(g)})}"><div class="sheet-content"><div class="eyebrow">${h(g.is_demo?'detailEyebrowSample':'detailEyebrow')}</div><h2 id="sheet-title">${esc(title(g))}</h2><p class="detail-location">${icon('pin')}${esc(g.area.split('·')[0])} · ${esc(cityName(g.city))}</p><div class="detail-features"><div>${icon(g.covered?'roof':'car')}<strong>${h(g.covered?'covered':'openAir')}</strong><span>${h('parkingType')}</span></div><div>${icon('car')}<strong>${h(g.vehicle_size==='compact'?'compact':g.vehicle_size==='suv'?'suv':'van')}</strong><span>${h('vehicleFit')}</span></div><div>${icon('height')}<strong><bdi>${new Intl.NumberFormat(locale(),{minimumFractionDigits:2}).format(g.height_cm/100)} ${h('metre')}</bdi></strong><span>${h('height')}</span></div></div><p class="detail-description">${esc(localizedField(g,'description'))}</p><div class="host-line"><div class="host-avatar">${esc(g.owner_name?.[0]||'G')}</div><div><strong>${h('hostedBy',{name:g.owner_name})}</strong><span>${h(g.is_demo?'sampleHost':'pendingIdentity')}</span></div></div><div class="notice">${icon('lock')}<span>${h('entranceNotice')}</span></div><p class="small">${h('cancelPolicy')}</p></div><div class="detail-bottom"><div><strong><bdi>${esc(amount(rate(g)))}</bdi></strong><small>${h('perPeriod',{period:period()})}</small></div><button class="primary" data-action="book-form">${h(state.demo?'tryBooking':'chooseDates')}${icon('arrow')}</button></div>`);}
 function bookingForm(){if(!state.user){auth(false,bookingForm);return;}bookingKey=requestKey();const start=Math.ceil((Date.now()+3600000)/3600000)*3600000;showModal(`<div class="sheet-content"><div class="eyebrow">${h(state.demo?'bookingEyebrowSample':'bookingEyebrow')}</div><h2 id="sheet-title">${h('bookingTitle')}</h2><p class="detail-location">${esc(title(modalGarage))} · ${esc(cityName(modalGarage.city))}</p><form id="booking-form" class="form"><div class="two-fields"><label class="field">${h('startMorocco')}<input type="datetime-local" name="start" value="${moroccoInput(start)}" min="${moroccoInput(Date.now()+60000)}" required></label><label class="field">${h(state.mode==='hourly'?'hours':'months')}<input type="number" name="units" min="1" max="${state.mode==='hourly'?168:12}" step="1" value="${state.mode==='hourly'?3:1}" required></label></div><div class="booking-options"><button type="button" class="secondary selected" data-action="booking-type" data-type="book">${h('bookListed')}</button><button type="button" class="secondary" data-action="booking-type" data-type="offer">${h('propose')}</button></div><input type="hidden" name="type" value="book"><label class="field" id="offer-field" hidden>${h('offerTotal')}<input name="offer" type="number" step="1" min="1" inputmode="numeric"><small>${h('fairOfferHint')}</small></label><div class="price-summary" id="price-summary"></div><div class="notice">${icon('shield')}<span>${h(state.demo?'practiceNotice':'arrivalNotice')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit" id="booking-submit">${h(state.demo?'confirmPreview':'confirmBooking')}${icon('arrow')}</button><p class="form-footer">${state.mode==='monthly'?h('calendarBilling')+' ':''}${h('timePolicy')}</p></form></div>`);updateQuote();}
 function quote(){const form=$('#booking-form');if(!form)return null;const data=new FormData(form),start=fromMoroccoInput(data.get('start')),units=Number(data.get('units'));if(!Number.isInteger(units)||units<1||units>(state.mode==='hourly'?168:12))throw new Error(localizeError('Choose a valid duration.',language()));return {starts_at:new Date(start).toISOString(),end:endAt(start,units,state.mode),units,mode:state.mode,action:data.get('type'),total_cents:Math.round(Number(data.get('offer'))*100),listed:rate(modalGarage)*units};}
 function updateQuote(){try{const q=quote();if(!q)return;$('#price-summary').innerHTML=`<div class="summary-line"><span>${esc(amount(rate(modalGarage)))} × ${esc(duration(q.units,state.mode))}</span><bdi>${esc(amount(q.listed))}</bdi></div><div class="summary-line"><span>${h('platformFee')}</span><bdi>${esc(amount(0))}</bdi></div><div class="summary-line muted"><span>${h('ends',{date:dateLabel(q.end)})}</span><span>${h('moroccoTime')}</span></div><div class="summary-line total"><span>${h(q.action==='offer'?'yourOffer':'totalArrival')}</span><bdi>${esc(amount(q.action==='offer'?q.total_cents:q.listed))}</bdi></div>`;const offer=$('[name="offer"]');offer.min=Math.ceil(q.listed*.6/100);offer.max=Math.floor(q.listed*2/100);}catch{$('#price-summary').textContent=t('validQuote');}}
-function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.latitude+','+r.longitude)}" target="_blank" rel="noopener noreferrer">${h('directions')} ↗</a></div>`:''}<div class="booking-actions">${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
+function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.latitude+','+r.longitude)}" target="_blank" rel="noopener noreferrer">${h('directions')} ↗</a></div>`:''}<div class="booking-actions">${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}${['requested','countered','confirmed'].includes(r.status)?chatButton('reservation',r.id,host?'host':'renter'):''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
 function hostCard(g){return `<article class="booking-card"><img src="${esc(safeImage(g.image))}" alt="${h('photoPending')}"><div class="booking-info">${badge(g.status)}<h3 class="booking-title">${esc(title(g))}</h3><p class="booking-meta">${esc(g.area)} · ${esc(cityName(g.city))}<br><bdi>${esc(amount(g.hourly_cents))}</bdi> / ${h('hour')} · <bdi>${esc(amount(g.monthly_cents))}</bdi> / ${h('month')}</p><div class="booking-actions">${state.demo&&g.status==='pending'?`<button class="secondary" data-action="approve-demo" data-id="${esc(g.id)}">${h('previewApproval')}</button>`:''}</div>${g.status==='pending'?`<p class="small">${h('listingPending')}</p>`:''}</div></article>`;}
 function auth(register=false,callback=null){if(callback)afterAuth=callback;showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p><form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('agreeTerms')} <button type="button" data-action="privacy" class="support-link">${h('privacyTerms')}</button></p></form></div>`);}
-function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:''}<button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<button class="secondary" data-action="privacy">${icon('shield')}${h('privacyTerms')}</button><button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
+function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:''}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<button class="secondary" data-action="privacy">${icon('shield')}${h('privacyTerms')}</button><button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
 function hostForm(){if(!state.user){auth(true,hostForm);return;}showModal(`<div class="sheet-content"><div class="eyebrow">${h('hostFormEyebrow')}</div><h2 id="sheet-title">${h('hostFormTitle')}</h2><p class="small">${h('privateEntrance')}</p><form id="host-form" class="form"><label class="field">${h('garageName')}<input name="name" placeholder="${h('garageNameHint')}" minlength="3" maxlength="100" required></label><div class="two-fields"><label class="field">${h('city')}<select name="city" id="host-city">${cityOptions(state.city)}</select></label><label class="field">${h('neighbourhood')}<input name="area" placeholder="${h('areaHint')}" minlength="2" maxlength="100" required></label></div><label class="field">${h('address')}<input name="address" placeholder="${h('addressHint')}" minlength="5" maxlength="220" required><small>${h('privateAddressHint')}</small></label><label class="field">${h('placePin')}</label><div class="location-select-map"><div id="picker-map" class="map"></div></div><input type="hidden" name="latitude" value=""><input type="hidden" name="longitude" value=""><span class="small" id="pin-label">${h('pinRequired')}</span><div class="two-fields"><label class="field">${h('hourlyPrice')}<input name="hourly" type="number" min="1" max="1000" step="1" placeholder="12" required></label><label class="field">${h('monthlyPrice')}<input name="monthly" type="number" min="100" max="100000" step="1" placeholder="950" required></label></div><div class="two-fields"><label class="field">${h('vehicleSize')}<select name="vehicle_size"><option value="compact">${h('compact')}</option><option value="suv">${h('carSUV')}</option><option value="van">${h('carVan')}</option></select></label><label class="field">${h('heightCm')}<input name="height_cm" type="number" min="140" max="500" step="1" placeholder="220" required></label></div><label class="field">${h('parkingType')}<select name="covered"><option value="yes">${h('coveredGarage')}</option><option value="no">${h('outdoorSpace')}</option></select></label><label class="field">${h('renterInfo')}<textarea name="description" minlength="10" maxlength="1500" placeholder="${h('descriptionHint')}" required></textarea></label><div class="photo-choice">${icon('camera')}<span>${h('accuratePhotos')}</span></div><div class="notice">${icon('shield')}<span>${h('hostConsent')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(state.demo?'submitPreview':'submitReview')}${icon('arrow')}</button></form></div>`);if(!globalThis.L){$('#pin-label').textContent=t('mapHostUnavailable');return;}picker=L.map('picker-map',{scrollWheelZoom:false}).setView(cityCenters[state.city],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(picker);let pin;picker.on('click',e=>{if(pin)pin.remove();pin=L.marker(e.latlng).addTo(picker);$('[name="latitude"]').value=e.latlng.lat.toFixed(7);$('[name="longitude"]').value=e.latlng.lng.toFixed(7);$('#pin-label').textContent=t('entranceSelected',{coordinates:e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5)});});requestAnimationFrame(()=>picker?.invalidateSize());}
 function privacy(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('privacyEyebrow')}</div><h2 id="sheet-title">${h('privacyTitle')}</h2><div class="privacy-copy">${['Booking','Location','Trust','Preview'].map(section=>`<h3>${h('privacy'+section+'Title')}</h3><p>${h('privacy'+section)}</p>`).join('')}</div></div>`);}
 async function navigate(page){closeModal();setMapOpen(false);state.page=page;window.scrollTo({top:0});await render();}
@@ -135,6 +145,105 @@ async function openSupportTicket(id) {
  if(version===renderVersion&&sheet===$('.sheet'))showModal(supportThread(ticket,state.demo));
 }
 
+function stopChat() {
+ if(activeChat)clearInterval(activeChat.timer);
+ activeChat=null;
+}
+
+function atChatBottom(pane) {
+ return pane.scrollHeight-pane.clientHeight-pane.scrollTop<36;
+}
+
+async function markChatRead(view) {
+ if(activeChat!==view||document.hidden||view.reading||!atChatBottom(view.pane))return;
+ const through=view.messages.findLast(message=>!message.own)?.seq||0;
+ if(through<=view.readThrough)return;
+ view.reading=true;
+ try{
+  await repo.readChat(view.kind,view.id,through);
+  view.readThrough=through;
+ }catch{
+  // The next refresh retries the receipt while the conversation is visible.
+ }finally{view.reading=false;}
+}
+
+function updateChat(view,result,{older=false,follow=false}={}) {
+ if(activeChat!==view)return;
+ const pane=view.pane,oldHeight=pane.scrollHeight,atBottom=atChatBottom(pane);
+ const messages=new Map(view.messages.map(row=>[row.seq,row]));
+ for(const row of result.messages)messages.set(row.seq,row);
+ const seen=Math.max(view.seenThrough,result.seen_through||0);
+ if(messages.size!==view.messages.length||seen!==view.seenThrough){
+  view.messages=[...messages.values()].sort((a,b)=>a.seq-b.seq);
+  view.seenThrough=seen;
+  pane.innerHTML=chatMessages(view.messages,seen,view.peer);
+  if(older)pane.scrollTop+=pane.scrollHeight-oldHeight;
+  else if(follow||atBottom)pane.scrollTop=pane.scrollHeight;
+ }
+ if(result.conversation){
+  $('#chat-closed',view.sheet).hidden=result.conversation.writable;
+  $('#chat-compose',view.sheet).hidden=!result.conversation.writable;
+ }
+ $('[data-action="chat-older"]',view.sheet).hidden=!view.hasOlder;
+ void markChatRead(view);
+}
+
+async function refreshChat(view,older=false) {
+ if(!view||activeChat!==view||view.loading)return;
+ view.loading=true;
+ try{
+  const before=older?view.messages[0]?.seq:0;
+  const after=older?0:view.cursor;
+  const result=await repo.chat(view.kind,view.id,{before,after});
+  if(activeChat!==view)return;
+  // Only a server read advances the cursor. A send can return before an
+  // earlier incoming message has been fetched.
+  if(!older&&result.messages.length)view.cursor=result.messages.at(-1).seq;
+  if(older||!after)view.hasOlder=result.has_older;
+  $('#chat-sync',view.sheet).hidden=true;
+  updateChat(view,result,{older});
+ }catch(error){
+  if(activeChat!==view)return;
+  if(error.status===401||error.status===404){
+   closeModal();toast(localizeError(error.message,language()));
+  }else{
+   const notice=$('#chat-sync',view.sheet);
+   notice.textContent=t('chatSyncError');notice.hidden=false;
+  }
+ }finally{view.loading=false;}
+}
+
+async function openChat(kind,id) {
+ const version=renderVersion,previous=$('.sheet');
+ const result=await repo.chat(kind,id);
+ if(version!==renderVersion||previous!==$('.sheet'))return;
+ showModal(chatSheet(result,state.demo));
+ const view={kind,id,sheet:$('.sheet'),pane:$('#chat-messages'),messages:result.messages,
+  cursor:result.messages.at(-1)?.seq||0,hasOlder:result.has_older,peer:result.conversation.peer_name,
+  seenThrough:result.seen_through,readThrough:0,reading:false,loading:false,pending:null};
+ activeChat=view;
+ view.pane.scrollTop=view.pane.scrollHeight;
+ view.pane.addEventListener('scroll',()=>void markChatRead(view),{passive:true});
+ view.timer=setInterval(()=>{if(!document.hidden)void refreshChat(view);},5000);
+ void markChatRead(view);
+}
+
+async function sendChatMessage(form,value,button) {
+ const view=activeChat;
+ if(!view)return;
+ const message=value.trim();
+ if(!message)throw new Error('Check message.');
+ if(view.pending?.message!==message)view.pending={message,request_key:requestKey()};
+ try{
+  const saved=await repo.sendChat(view.kind,view.id,view.pending);
+  if(activeChat!==view)return;
+  view.pending=null;
+  const input=$('[name="message"]',form);
+  if(input.value.trim()===message)input.value='';
+  updateChat(view,{messages:[saved]},{follow:true});
+ }finally{button.disabled=false;}
+}
+
 document.addEventListener('click',async event=>{
  if(event.target.classList.contains('modal-overlay')){closeModal();return;}
  const button=event.target.closest('[data-action]');if(!button)return;const a=button.dataset.action,gid=button.dataset.id;
@@ -146,6 +255,18 @@ document.addEventListener('click',async event=>{
   else if(a==='save'){state.saved.has(gid)?state.saved.delete(gid):state.saved.add(gid);try{localStorage.setItem('garageshare-saved',JSON.stringify([...state.saved]));}catch{toast(t('savedSession'));}if(state.page==='explore')updateResults();else await render();}
   else if(a==='detail'){const g=state.garages.find(g=>g.id===gid);if(g)detail(g);}
   else if(a==='toggle-map')setMapOpen(!state.mapOpen);
+  else if(a==='chat-open'){button.disabled=true;try{await openChat(button.dataset.kind,gid);}finally{button.disabled=false;}}
+  else if(a==='chat-refresh'||a==='chat-older')await refreshChat(activeChat,a==='chat-older');
+  else if(a==='chat-prompt'){
+   const input=$('#chat-form textarea');
+   if(input){input.value=t(button.dataset.prompt);input.focus();}
+  }
+  else if(a==='chat-sample'&&activeChat){
+   const view=activeChat;
+   button.disabled=true;
+   try{await repo.sampleChatReply(view.kind,view.id);await refreshChat(view);}
+   finally{button.disabled=false;}
+  }
   else if(a==='price-request'){button.disabled=true;try{await openPriceRequest();}finally{button.disabled=false;}}
   else if(a==='price-select'){
    const request=state.priceRequests.find(row=>row.id===gid);
@@ -200,6 +321,7 @@ document.addEventListener('submit',async event=>{
  const form=event.target;event.preventDefault();const button=$('[type="submit"]',form);if(!button||button.disabled)return;button.disabled=true;const error=$('.form-error',form);if(error)error.hidden=true;
  try{const data=Object.fromEntries(new FormData(form));
   if(form.id==='auth-form'){state.user=await repo.signIn(data,form.dataset.register==='true');closeModal();await render();const cb=afterAuth;afterAuth=null;if(cb)await cb();else toast(t('welcome'));}
+  else if(form.id==='chat-form')await sendChatMessage(form,data.message,button);
   else if(form.id==='price-request-form'){
    await repo.requestPrices({city:data.city,mode:data.mode,starts_at:new Date(fromMoroccoInput(data.start)).toISOString(),units:Number(data.units),
     proposed_cents:Math.round(Number(data.total)*100),garage_ids:new FormData(form).getAll('garage_ids'),request_key:data.request_key});

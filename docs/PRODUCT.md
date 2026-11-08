@@ -48,6 +48,12 @@ The renter picks dates, an hourly or monthly duration, a proposed total and up t
 
 Customers open a ticket from their account or attach a booking they own or host. Staff can search the queue, reply, assign an owner and resolve issues. A customer reply reopens the ticket. The preview includes sample replies for practice on the device.
 
+## Renter and host chat
+
+After a host sends a quote, the renter and that host can ask about fit and arrival in a private conversation. Choosing the quote carries its conversation into the confirmed booking. Direct reservations and single-garage offers also have chat. Closed offers and cancelled or completed stays keep their messages available for reading. The Messages inbox shows unread replies. An open chat refreshes every five seconds while visible, with quick messages and read receipts.
+
+The in-app contact pattern follows [inDrive’s public safety guide](https://indrive.com/fr-ma/safety). GarageShare displays names and garage context to both participants. The offline preview offers sample replies.
+
 ## Trust language
 
 The demo never describes sample properties as real or verified. Moderation is a manual review step, not proof of identity, legal ownership or physical safety. The UI contains no fabricated ratings or reviews. Accurate photos and host permission are prerequisites for approval.

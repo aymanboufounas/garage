@@ -96,6 +96,22 @@ html:not([lang=ar]) .hero h1{font-family:DM,Manrope,sans-serif;font-weight:750}
 .support-booking { margin-top:10px; }
 .support-booking p { margin:4px 0; }
 .account-menu a.secondary { text-decoration:none; }
+.chat-button { gap:7px; }
+.chat-button .icon { width:17px; height:17px; }
+.chat-preview-line { display:-webkit-box!important; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; white-space:pre-wrap; }
+.chat-content > h2 { overflow-wrap:anywhere; }
+.chat-tools { margin:8px 0; }
+.chat-messages { display:flex; flex-direction:column; gap:8px; min-height:90px; max-height:clamp(120px,calc(var(--app-viewport-height,100dvh) * .38),400px); overflow-y:auto; overscroll-behavior:contain; padding:9px; background:var(--paper); border:1px solid var(--line); border-radius:14px; }
+.chat-message { align-self:flex-start; max-width:86%; padding:8px 11px; border:1px solid var(--line); border-radius:12px; background:#fff; overflow-wrap:anywhere; }
+.chat-message.own { align-self:flex-end; background:var(--mint); }
+.chat-message strong,.chat-message small { display:block; font-size:11px; }
+.chat-message small { color:var(--muted); }
+.chat-message p { margin:3px 0; white-space:pre-wrap; }
+.chat-quick { display:flex; flex-wrap:wrap; gap:6px; margin:9px 0; }
+.chat-quick .chip { min-height:36px; font-size:11px; }
+.chat-form { margin-top:8px; }
+.chat-form textarea { min-height:64px; }
+.chat-form .primary { justify-self:end; min-width:96px; }
 @media(max-width:420px) {
  .service-fields { grid-template-columns:minmax(0,1fr); }
  .deal-quote > .secondary { flex:1 1 100%; }

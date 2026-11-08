@@ -1,5 +1,5 @@
 // Install Playwright and Chromium to run this workflow against local test servers.
-const { chromium } = require('playwright');
+const { chromium, request } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -34,7 +34,7 @@ const path = require('node:path');
     );
   }
   await Promise.all([app, demo].map((service, i) => new Promise(resolve => service.server.listen(3008 + i, '127.0.0.1', resolve))));
-  let browser;
+  let browser, peerApi;
   try {
     const args = ['--no-sandbox', '--disable-dev-shm-usage'];
     if (process.env.BROWSER_SINGLE_PROCESS === '1') args.push('--single-process', '--no-zygote');
@@ -48,14 +48,18 @@ const path = require('node:path');
     await context.route('https://tile.openstreetmap.org/**', route => route.abort());
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
-    async function signIn(name) {
-      await context.clearCookies();
-      const session = await (await context.request.get(live + '/api/session')).json();
-      const login = await context.request.post(live + '/api/login', {
+    async function authenticate(client, name) {
+      const session = await (await client.get(live + '/api/session')).json();
+      const login = await client.post(live + '/api/login', {
         headers: { Origin: live, 'X-CSRF-Token': session.csrf },
         data: { email: `${name.toLowerCase()}@example.com`, password }
       });
       assert.equal(login.status(), 200);
+      return (await login.json()).csrf;
+    }
+    async function signIn(name) {
+      await context.clearCookies();
+      return authenticate(context.request, name);
     }
     const nav = name => page.locator(`.bottom-nav [data-page="${name}"]`).click();
     const action = name => page.locator(`[data-action="${name}"]`);
@@ -99,11 +103,54 @@ const path = require('node:path');
     await nav('trips');
     await action('price-select').first().waitFor();
     check('The renter can compare two prices', await action('price-select').count() === 2);
-    await page.locator('.deal-quote').filter({ hasText: 'Garage Beta' }).locator('button').click();
+    const beta = page.locator('.deal-quote').filter({ hasText: 'Garage Beta' });
+    const quoteId = await beta.locator('[data-action="chat-open"]').getAttribute('data-id');
+    const chatPath = `/api/chat/quote/${quoteId}`;
+    const guestMessage = 'Will an SUV fit? <img src=x onerror=alert(1)>';
+    await beta.locator('[data-action="chat-open"]').click();
+    await page.locator('#chat-form textarea').fill(guestMessage);
+    await submit('#chat-form');
+    await page.locator('#chat-messages .chat-message.own').waitFor();
+    await page.locator('#chat-form textarea').fill('Draft while waiting');
+    peerApi = await request.newContext();
+    const peerCsrf = await authenticate(peerApi, 'HostB');
+    const hostMessage = 'Yes, an SUV fits. Let me know your arrival time.';
+    const reply = await peerApi.post(live + chatPath + '/send', {
+      headers: { Origin: live, 'X-CSRF-Token': peerCsrf },
+      data: { message: hostMessage, request_key: id() }
+    });
+    assert.equal(reply.status(), 200);
+    await page.locator('#chat-messages').getByText(hostMessage, { exact: true }).waitFor({ timeout: 9000 });
+    check('Chat refreshes automatically and preserves the message draft', await page.locator('#chat-form textarea').inputValue() === 'Draft while waiting');
+    await page.locator('.sheet-close').click();
+    await signIn('HostB');
+    await page.goto(live);
+    await nav('host');
+    await page.locator('main [data-page="messages"]').click();
+    await page.locator('#chat-inbox .chat-unread').waitFor();
+    check('The host sees the renter’s unread message in Messages', (await page.locator('#chat-inbox .chat-unread').innerText()).includes('1 unread'));
+    const receipt = page.waitForResponse(response => response.url() === live + chatPath + '/read' && response.status() === 200);
+    await page.locator('#chat-inbox [data-action="chat-open"]').click();
+    await receipt;
+    check('Chat displays user markup as plain text', await page.locator('#chat-messages').getByText(guestMessage, { exact: true }).count() === 1 && await page.locator('#chat-messages img').count() === 0);
+    await page.locator('.sheet-close').click();
+    await signIn('Renter');
+    await page.goto(live);
+    await nav('trips');
+    await beta.locator('[data-action="chat-open"]').click();
+    await page.locator('#chat-messages .own small').filter({ hasText: 'Seen' }).waitFor();
+    checks.push('The renter sees a read receipt after the host reads the message');
+    await page.locator('.sheet-close').click();
+    await beta.locator('[data-action="price-select"]').click();
     await submit('#price-select-form');
     await page.locator('#trip-list .booking-card').waitFor();
     check('Selecting the counter quote creates one booking at 875 DH',
       await page.locator('#trip-list .booking-card').count() === 1 && (await page.locator('.booking-amount').innerText()).includes('875'));
+    await page.locator('#trip-list [data-action="chat-open"]').click();
+    await page.locator('#chat-messages').getByText(hostMessage, { exact: true }).waitFor();
+    check('Confirmed booking opens the original quote conversation', await page.locator('#chat-messages .chat-message').count() === 2);
+    await page.screenshot({ path: path.join(output, 'mobile-chat.png') });
+    await page.locator('.sheet-close').click();
     await action('support-new').click();
     await page.locator('#support-create-form [name="subject"]').fill('Access question');
     await page.locator('#support-create-form [name="message"]').fill('Please check the entrance. <img src=x onerror=alert(1)>');
@@ -157,6 +204,28 @@ const path = require('node:path');
     await submit('#price-select-form');
     await page.locator('#trip-list .booking-card').waitFor();
     check('The preview saves the chosen booking', await page.locator('#trip-list .status.confirmed').count() === 1);
+    await page.locator('#trip-list [data-action="chat-open"]').click();
+    await action('chat-prompt').first().click();
+    check('A quick message fills the composer', (await page.locator('#chat-form textarea').inputValue()).includes('SUV'));
+    await submit('#chat-form');
+    await page.locator('#chat-messages .own').waitFor();
+    await action('chat-sample').click();
+    await page.locator('#chat-messages .chat-message:not(.own)').waitFor();
+    check('The preview can simulate a private reply', await page.locator('#chat-messages .chat-message').count() === 2);
+    await page.locator('.sheet-close').click();
+    await page.setViewportSize({ width: 320, height: 520 });
+    await page.locator('#language').selectOption('ar');
+    await page.locator('#trip-list [data-action="chat-open"]').click();
+    await page.locator('#chat-form [type="submit"]').scrollIntoViewIfNeeded();
+    const composerFits = await page.locator('#chat-form [type="submit"]').evaluate(button => {
+      const box = button.getBoundingClientRect();
+      return document.documentElement.dir === 'rtl' && document.documentElement.scrollWidth <= innerWidth &&
+        box.top >= 0 && box.bottom <= innerHeight;
+    });
+    check('Arabic chat keeps the send button reachable on a compact phone', composerFits);
+    await page.locator('.sheet-close').click();
+    await page.locator('#language').selectOption('en');
+    await page.setViewportSize({ width: 390, height: 844 });
     await action('support-new').click();
     await page.locator('#support-create-form [name="subject"]').fill('Sample support question');
     await page.locator('#support-create-form [name="message"]').fill('Where do I see my sample booking details?');
@@ -174,6 +243,7 @@ const path = require('node:path');
     check('No uncaught browser errors', errors.length === 0);
     console.log(JSON.stringify({ passed: checks.length, checks, errors }, null, 2));
   } finally {
+    if (peerApi) await peerApi.dispose();
     if (browser) await browser.close();
     for (const service of [app, demo]) {
       await new Promise(resolve => service.server.close(resolve));

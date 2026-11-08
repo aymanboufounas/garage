@@ -84,6 +84,24 @@ CREATE TABLE IF NOT EXISTS support_messages (
  UNIQUE(ticket_id,author_id,request_key)
 );
 CREATE INDEX IF NOT EXISTS support_messages_thread ON support_messages(ticket_id,created_at);
+CREATE TABLE IF NOT EXISTS chat_threads (
+ id TEXT PRIMARY KEY,
+ guest_id TEXT NOT NULL REFERENCES users(id), host_id TEXT NOT NULL REFERENCES users(id),
+ reservation_id TEXT UNIQUE REFERENCES reservations(id) ON DELETE CASCADE,
+ quote_id TEXT UNIQUE REFERENCES rental_quotes(id) ON DELETE CASCADE,
+ updated_at INTEGER NOT NULL,
+ CHECK(guest_id<>host_id), CHECK((reservation_id IS NULL)<>(quote_id IS NULL))
+);
+CREATE INDEX IF NOT EXISTS chat_threads_guest ON chat_threads(guest_id,updated_at);
+CREATE INDEX IF NOT EXISTS chat_threads_host ON chat_threads(host_id,updated_at);
+CREATE TABLE IF NOT EXISTS chat_messages (
+ seq INTEGER PRIMARY KEY AUTOINCREMENT,
+ thread_id TEXT NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+ sender_id TEXT NOT NULL REFERENCES users(id),
+ message TEXT NOT NULL, created_at INTEGER NOT NULL, read_at INTEGER,
+ request_key TEXT NOT NULL, UNIQUE(thread_id,sender_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS chat_messages_thread ON chat_messages(thread_id,seq);
 -- A last line of defence against overlapping confirmed bookings, including direct writes.
 CREATE TRIGGER IF NOT EXISTS no_overlap_insert BEFORE INSERT ON reservations
 WHEN NEW.status='confirmed'

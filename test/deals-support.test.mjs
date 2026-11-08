@@ -230,3 +230,91 @@ test('staff CLI grants and revokes real access and invalidates existing sessions
   assert.equal((await operator.signIn()).staff_role, undefined);
   assert.equal((await operator.call('/staff/queue')).status, 403);
 });
+
+test('private chat follows the selected quote through booking and closes with the stay', async t => {
+  const { db, client, garage } = await setup(t);
+  const [guest, hostA, hostB, staff] = await Promise.all(['Guest', 'HostA', 'HostB', 'Staff'].map(name => client().register(name)));
+  db.prepare("INSERT INTO staff_members VALUES (?,'admin')").run(staff.user.id);
+  const a = await garage(hostA, 'Garage Alpha');
+  const b = await garage(hostB, 'Garage Beta');
+  const request = (await guest.call('/deals', { city: 'Nador', garage_ids: [a, b], mode: 'hourly', units: 3,
+    starts_at: new Date(Date.now() + 3 * DAY).toISOString(), proposed_cents: 4500, request_key: id() })).json.request;
+  const quoteA = request.quotes.find(q => q.garage_id === a);
+  const quoteB = request.quotes.find(q => q.garage_id === b);
+  const thread = q => `/chat/quote/${q.id}`;
+  const text = { message: 'Will an SUV fit? <img src=x onerror=alert(1)>', request_key: id(), sender_id: hostA.user.id };
+  let first, reservationId;
+  await t.test('only a responding host and that renter can send or read messages', async () => {
+    assert.equal((await guest.call(thread(quoteA))).json.conversation.writable, false);
+    assert.equal((await guest.call(thread(quoteA) + '/send', text)).status, 409);
+    assert.equal((await hostA.call(`/host/deals/${quoteA.id}/respond`, { action: 'match' })).status, 200);
+    assert.equal((await hostB.call(`/host/deals/${quoteB.id}/respond`, { action: 'counter', total_cents: 4700 })).status, 200);
+    assert.equal((await hostB.call(thread(quoteA))).status, 404);
+    assert.equal((await staff.call(thread(quoteA))).status, 404);
+    assert.equal((await staff.call(thread(quoteA) + '/read', { through: 1 })).status, 404);
+    assert.equal((await client().call(thread(quoteA))).status, 401);
+    assert.equal((await guest.call(thread(quoteA) + '/send', text, { 'X-CSRF-Token': 'forged' })).status, 403);
+    const sent = await Promise.all([guest.call(thread(quoteA) + '/send', text), guest.call(thread(quoteA) + '/send', text)]);
+    assert.deepEqual(sent.map(row => row.status), [200, 200]);
+    first = sent[0].json.message;
+    assert.equal(sent[1].json.message.seq, first.seq);
+    assert.equal(first.own, true);
+    const read = await hostA.call(thread(quoteA));
+    assert.equal(read.headers.get('cache-control'), 'no-store');
+    assert.equal(read.json.messages.length, 1);
+    assert.equal(read.json.messages[0].own, false);
+    assert.equal(read.json.messages[0].message, text.message);
+    assert.equal(JSON.stringify(read.json).includes(guest.user.email), false);
+    assert.equal(JSON.stringify(read.json).includes('Private entrance'), false);
+    assert.deepEqual((await staff.call('/chat')).json.conversations, []);
+  });
+  await t.test('unread counts, receipts and incremental replies belong to the intended conversation', async () => {
+    assert.equal((await hostA.call('/chat')).json.conversations[0].unread, 1);
+    assert.equal((await hostA.call(thread(quoteA) + '/read', { through: first.seq })).status, 200);
+    assert.equal((await hostA.call('/chat')).json.conversations[0].unread, 0);
+    assert.equal((await guest.call(thread(quoteA))).json.seen_through, first.seq);
+    const reply = await hostA.call(thread(quoteA) + '/send', { message: 'Yes, an SUV fits.', request_key: id() });
+    assert.equal(reply.status, 200);
+    const next = await guest.call(thread(quoteA) + `?after=${first.seq}`);
+    assert.deepEqual(next.json.messages.map(row => row.message), ['Yes, an SUV fits.']);
+    assert.equal(next.json.messages[0].own, false);
+    assert.equal((await guest.call(thread(quoteB))).json.messages.length, 0);
+    assert.equal((await guest.call(thread(quoteB) + '/send', { message: 'How high is the entrance?', request_key: id() })).status, 200);
+  });
+  await t.test('the selected booking reuses chat history and the other quote becomes read-only', async () => {
+    const selected = await guest.call(`/deals/${request.id}/select`, { quote_id: quoteA.id, total_cents: 4500 });
+    assert.equal(selected.status, 200);
+    reservationId = selected.json.reservation_id;
+    const booking = `/chat/reservation/${reservationId}`;
+    assert.equal((await hostB.call(booking)).status, 404);
+    const previous = await guest.call(booking);
+    assert.equal(previous.json.conversation.writable, true);
+    assert.equal(previous.json.conversation.id, quoteA.id);
+    assert.equal(previous.json.messages[0].seq, first.seq);
+    const sent = await hostA.call(booking + '/send', { message: 'Please tell me when you arrive.', request_key: id() });
+    assert.equal(sent.status, 200);
+    assert.equal((await guest.call(thread(quoteA))).json.messages.length, 3);
+    const closed = await hostB.call(thread(quoteB));
+    assert.equal(closed.json.conversation.writable, false);
+    assert.equal(closed.json.messages.length, 1);
+    assert.equal((await hostB.call(thread(quoteB) + '/send', { message: 'Another reply', request_key: id() })).status, 409);
+  });
+  await t.test('cancelled stays retain history and reject new messages', async () => {
+    assert.equal((await guest.call(`/reservations/${reservationId}/cancel`, {})).status, 200);
+    const path = `/chat/reservation/${reservationId}`;
+    assert.equal((await guest.call(path)).json.conversation.writable, false);
+    assert.equal((await guest.call(path + '/send', { message: 'New message after cancellation', request_key: id() })).status, 409);
+    assert.equal((await guest.call(path + '/send', text)).json.message.seq, first.seq);
+    assert.equal((await guest.call(path + `?before=${first.seq}`)).json.messages.length, 0);
+  });
+  await t.test('a direct booking supports chat through the end of the stay', async () => {
+    const booked = await guest.call('/reservations', { garage_id: a, mode: 'hourly', units: 1,
+      starts_at: new Date(Date.now() + 8 * DAY).toISOString(), action: 'book', request_key: id() });
+    assert.equal(booked.status, 201);
+    const path = `/chat/reservation/${booked.json.reservation.id}`;
+    const sent = await hostA.call(path + '/send', { message: 'Use the confirmed arrival details.', request_key: id() });
+    assert.equal(sent.status, 200);
+    assert.equal((await guest.call(path)).json.messages[0].message, 'Use the confirmed arrival details.');
+    assert.equal((await hostB.call(path)).status, 404);
+  });
+});

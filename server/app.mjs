@@ -7,6 +7,7 @@ import {localizeError,requestLanguage} from '../web/errors.js';
 import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,publicGarage,limit,audit,checkedRequestKey } from './core.mjs';
 import { dealsRoute } from './deals.mjs';
 import { staffRole, supportRoute } from './support.mjs';
+import { chatRoute } from './chat.mjs';
 
 const MAX_BODY=16000, HOUR=3600000;
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.woff2':'font/woff2','.json':'application/json'};
@@ -124,6 +125,9 @@ export function makeApp(options={}) {
           return reply(res,{ok:true});
         }
         const user=requireUser(s);
+        if (/^\/api\/chat(?:\/|$)/.test(path)) {
+          return reply(res, chatRoute(db, user.id, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
+        }
         if (/^\/api\/(?:host\/)?deals(?:\/|$)/.test(path)) {
           return reply(res, dealsRoute(db, user.id, req.method, path, req.method === 'POST' ? await body(req) : {}));
         }

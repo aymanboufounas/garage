@@ -1,5 +1,8 @@
 // Shared by the server and browser: API semantics remain stable across languages.
 const messages={
+ 'Conversation not found.':['Conversation introuvable.','المحادثة غير موجودة.'],
+ 'This conversation is read-only.':['Cette conversation est en lecture seule.','هذه المحادثة للقراءة فقط.'],
+ 'Choose a valid message reference.':['Choisissez une référence de message valide.','اختر مرجع رسالة صالحًا.'],
  'Choose one to five different garages.':['Choisissez de un à cinq garages différents.','اختر من مرآب واحد إلى خمسة مرائب مختلفة.'],
  'Price request not found.':['Demande de prix introuvable.','طلب السعر غير موجود.'],
  'Price quote not found.':['Offre de prix introuvable.','عرض السعر غير موجود.'],

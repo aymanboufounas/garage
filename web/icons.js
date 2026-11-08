@@ -18,6 +18,7 @@ const paths={
  map:'<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Zm6-3v15m6-12v15"/>',
  list:'<path d="M9 6h12M9 12h12M9 18h12M3 6h.01M3 12h.01M3 18h.01"/>',
  trip:'<rect x="4" y="7" width="16" height="14" rx="3"/><path d="M8 7V4h8v3M9 11v6m6-6v6"/>',
+ chat:'<path d="M20 12a8 8 0 0 1-8 8 8.5 8.5 0 0 1-3.5-.8L4 20l.8-4.5A8 8 0 1 1 20 12Z"/><path d="M8 10h8M8 14h5"/>',
  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
  plus:'<path d="M12 5v14M5 12h14"/>',
  leaf:'<path d="M20 3S4 1 4 12a7 7 0 0 0 12 5c4-4 4-14 4-14ZM4 21 15 10"/>',

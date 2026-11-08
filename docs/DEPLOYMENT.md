@@ -106,7 +106,7 @@ Run real-device tests for login/logout, location denied/allowed, keyboard resize
 
 ## Operations
 
-Run one Node process with this local SQLite file. Back up the database using SQLite's online backup mechanism or stop the process for a consistent copy of the database plus WAL. Back up approved photos as well. Protect/encrypt backups and test restoration. Avoid copying a live database file alone. Sessions and rate-limit rows are cleaned every minute. Set a retention policy for support conversations as well as reservations and audit records.
+Run one Node process with this local SQLite file. Back up the database using SQLite's online backup mechanism or stop the process for a consistent copy of the database plus WAL. Back up approved photos as well. Protect/encrypt backups and test restoration. Avoid copying a live database file alone. Sessions and rate-limit rows are cleaned every minute. Set a retention policy for private chat, support conversations, reservations and audit records.
 
 OpenStreetMap's public tile service is used for low-volume interactive browsing with visible attribution. It is not an offline tile pack. Choose an appropriate tile provider or your own tile service for sustained production traffic; follow its terms, attribution and caching rules. No Google Maps API key is needed for the included Leaflet map.
 

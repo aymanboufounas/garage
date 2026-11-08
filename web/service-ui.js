@@ -1,6 +1,7 @@
 import { cityName, duration, localizedField, t } from './i18n.js';
 import { dateLabel, esc, icon, money, moroccoInput } from './icons.js';
 import { requestKey } from './data.js';
+import { chatButton } from './chat-ui.js';
 
 const h = (key, params) => esc(t(key, params));
 const price = cents => `${money(cents)} ${t('currency')}`;
@@ -56,6 +57,7 @@ function guestQuote(quote, request) {
       <p class="small">${h(quote.covered ? 'covered' : 'outdoor')} · ${h(quote.vehicle_size)}</p></div>
     <div class="deal-price">${quote.total_cents !== null ? `<strong><bdi>${esc(price(quote.total_cents))}</bdi></strong>` : ''}
       <small>${status}</small></div>
+    ${quote.status === 'quoted' ? chatButton('quote', quote.id, 'renter') : ''}
     ${actionable ? `<button class="secondary" data-action="price-select" data-id="${esc(request.id)}"
       data-quote="${esc(quote.id)}">${h('dealChooseQuote')}</button>` : ''}
   </li>`;
@@ -95,6 +97,7 @@ export function hostPriceRequests(quotes, demo) {
         ${note('dealBudget', { total: price(q.proposed_cents) })}
         ${q.total_cents !== null ? `<strong><bdi>${esc(price(q.total_cents))}</bdi></strong>` : ''}
         ${active ? note('dealExpires', { date: dateLabel(q.expires_at) }) : ''}
+        ${q.status === 'quoted' ? `<div class="service-actions">${chatButton('quote', q.id, 'host')}</div>` : ''}
         ${active && q.status !== 'declined' ? `<div class="service-actions">
           ${q.status === 'invited' ? `<button class="primary" data-action="price-respond" data-id="${esc(q.id)}" data-response="match">${h('dealMatched')}</button>
             <button class="secondary" data-action="price-counter" data-id="${esc(q.id)}">${h('counterTitle')}</button>` : ''}

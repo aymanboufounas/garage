@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true); // Required only for our same-origin application.
         settings.setDomStorageEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.3.0 Android");
+        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.4.0 Android");
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
