@@ -13,7 +13,7 @@ An original Android garage marketplace for Morocco, rebuilt from the GarageShare
 
 Install `dist/GarageShare-preview.apk` on Android 8 or newer with an up-to-date Android System WebView. Android will ask you to allow installation from the app opening the APK. This is a development-signed preview, not a Play Store release.
 
-Preview **0.2.1** fixes the mobile map's bottom controls and Android system-bar spacing, keeps nearby price pins centered when the view resizes, and replaces the italic discovery headline with upright DM Sans. The APK uses the same preview signing certificate and can update version 0.2.0 without resetting saved preview data.
+Preview **0.3.0** adds requests for competing garage quotes, a customer support inbox, and a staff dashboard on the live service. The APK can update the previous GarageShare preview while keeping its saved data.
 
 The APK bundles the interface, fonts (including Cairo for Arabic), and fictional garage images. Use the header language selector for **Français**, **العربية** (RTL), or English. The choice is saved on the device. It works without an account or server. Map tiles require internet. All bookings, offers, host responses, and approvals in this preview are simulations stored only on the device. Nothing is paid or reserved in real life.
 
@@ -25,6 +25,8 @@ Try these flows:
 4. Open **Host** → submit a garage with an entrance pin → preview its approval.
 5. In Host → **Reservations & offers** → **Try a sample host request**, then accept or counter it.
 6. Tap the account icon → reset the preview when finished.
+7. Choose **Request prices** in Explore, select garages, and send a total. In Trips, try sample host replies and choose a quote to confirm one booking.
+8. Open **Support** from the account menu or a booking. Create a sample ticket and try a support reply.
 
 ## Run on your computer
 
@@ -57,7 +59,9 @@ Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser p
 | Discovery | Seven Moroccan cities, neighbourhood search, hourly/monthly prices, filters, sorting, saved spaces, OpenStreetMap/Leaflet map |
 | Reservations | Server-calculated integer prices, calendar-month dates in Africa/Casablanca, conflict prevention, idempotent creation, free cancellation before the start |
 | Negotiation | Guest offers, host acceptance or counter, guest acceptance, expiry, availability recheck on acceptance |
+| Competing quotes | One hourly or monthly request sent to up to five garages, host replies and counters, price comparison and one final selection |
 | Hosting | Same-account host dashboard, entrance pin, dimensions, two prices, pending listings, reservation and offer management |
+| Support | Private tickets linked to a booking, customer and staff replies, status filters, staff assignment and resolution at `/admin.html` |
 | Moderation | Server-only CLI, accurate-photo requirement before approval, rejection and archival guards |
 | Backend | Node.js 24, SQLite WAL, parameterized statements, private sessions, rate limits, audit trail |
 | Brand | Editable SVG logo, Android adaptive icon, colours and typography notes |
@@ -105,6 +109,6 @@ If Gradle dependency access is unavailable, `bash scripts/build-preview.sh` can 
 
 Run `npm test`. The suite checks time billing, concurrent overlaps, authoritative prices, idempotency, authorization, offer transitions, CSRF/origins, entrance privacy, database overlap triggers, and session revocation. See `docs/VALIDATION.md` for results from this delivery.
 
-This is a working MVP and a device-installable preview. A physical Android device has not been tested here. Production still requires your HTTPS deployment, real listings/photos, operator and support details, account recovery/email verification, and operational monitoring. Identity verification, insurance, in-app messaging, automated monthly renewal, online payment/payouts, and push notifications are not implemented. See `docs/DEPLOYMENT.md` and `docs/SECURITY.md` before a public launch.
+The preview is ready for phone testing. A public launch still needs an HTTPS deployment, real listings and photos, a support operator, email verification and recovery, account deletion, final privacy and rental terms, and a signed release bundle. The current payment model is pay on arrival. Follow the staff setup and release steps in `docs/DEPLOYMENT.md` before opening the service to customers.
 
 The original uploaded ZIP is unchanged. Its `.env`, credentials, database contents, PHP code, and payment configuration are not included in this app. Bundled sample garage art, fonts, and Leaflet are reused with their credits. Existing GarageShare accounts/bookings are not migrated; this backend starts with a separate schema.

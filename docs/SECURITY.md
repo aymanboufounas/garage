@@ -6,7 +6,7 @@ Passwords use salted scrypt (N=32768, r=8, p=1, 64-byte key). Passwords have a 1
 
 Every mutation checks the configured request Origin and a random session CSRF token using constant-time comparison. There is no permissive CORS. JSON request size is capped at 16 KB. Password work, account attempts, API calls, session creation, listing submission and booking creation have limits. Do not expose the Node listener to the public network; use the documented HTTPS reverse proxy.
 
-Every object lookup is scoped to the authenticated guest or actual garage owner. No caller can choose an admin role. Moderation is a server-side CLI operation. The UI renders externally sourced text through HTML escaping. SQL queries are parameterized. Server errors do not return stack traces or database details.
+Booking and price-request lookups are scoped to the authenticated renter or actual garage owner. Customers can read and reply to their own support tickets. Staff routes check the role stored on the server on every request. Granting and revoking staff roles uses the server CLI and invalidates sessions for that account. Listing moderation stays in the CLI. The UI escapes customer text, and SQL statements bind user inputs as parameters.
 
 ## Reservations
 
@@ -28,6 +28,6 @@ SQLite and photos must be backed up, retained and protected by the operator. Log
 
 ## Public launch work
 
-This build is not a security certification. Add verified email and password recovery, abuse reporting/support, ownership and identity review procedures, final operator privacy/rental terms, photo upload/re-encoding and deletion workflows, encryption and access policies for backups, monitoring and incident handling. Decide retention periods and implement account export/deletion to match them. Assess dependency and platform updates before release and retest on actual Android devices. Obtain an independent security review before handling payments or identity documents.
+Before public launch, complete verified email and password recovery, ownership review, final operator privacy and rental terms, and account export/deletion. Set staff access and incident procedures, choose support ticket retention periods, protect backups, and test the production configuration on Android devices. Support booking context contains the booking reference, period, price and status. Exact entrances stay in the authorized reservation view.
 
 This MVP deliberately collects no card data, ID documents or banking information. It claims no insurance, identity verification or guarantee that a real space is physically secure.

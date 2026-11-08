@@ -4,13 +4,14 @@ import { resolve, sep, extname } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import {localizeError,requestLanguage} from '../web/errors.js';
-import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,publicGarage,limit,audit } from './core.mjs';
+import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,publicGarage,limit,audit,checkedRequestKey } from './core.mjs';
+import { dealsRoute } from './deals.mjs';
+import { staffRole, supportRoute } from './support.mjs';
 
 const MAX_BODY=16000, HOUR=3600000;
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.woff2':'font/woff2','.json':'application/json'};
 const sampleImage='/assets/garages/garage-01.webp';
 const equal=(a,b)=>{if(typeof a!=='string'||typeof b!=='string')return false;const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);};
-const safeUser=u=>u?{id:u.id,name:u.name,email:u.email}:null;
 
 export function makeApp(options={}) {
   const db=options.db||openDatabase(options.database||resolve('data/garageshare.sqlite'));
@@ -21,6 +22,10 @@ export function makeApp(options={}) {
   if(trustedProxy&&!isIP(trustedProxy))throw new Error('TRUST_PROXY_IP must be one exact proxy IP address.');
   if(production&&new URL(origin).protocol!=='https:') throw new Error('Production APP_ORIGIN must use HTTPS.');
   const cookieName=production?'__Host-garageshare':'garageshare_session';
+  function safeUser(user) {
+    if (!user) return null;
+    return { id: user.id, name: user.name, email: user.email, staff_role: staffRole(db, user.id) };
+  }
   // A real hash ensures unknown accounts perform the same password work.
   const dummyHash=passwordHash(randomBytes(32).toString('hex'));
   function clientIP(req){const peer=req.socket.remoteAddress,forwarded=req.headers['x-real-ip'];return trustedProxy&&peer===trustedProxy&&typeof forwarded==='string'&&isIP(forwarded)?forwarded:peer;}
@@ -119,6 +124,12 @@ export function makeApp(options={}) {
           return reply(res,{ok:true});
         }
         const user=requireUser(s);
+        if (/^\/api\/(?:host\/)?deals(?:\/|$)/.test(path)) {
+          return reply(res, dealsRoute(db, user.id, req.method, path, req.method === 'POST' ? await body(req) : {}));
+        }
+        if (/^\/api\/(?:support|staff)\//.test(path)) {
+          return reply(res, supportRoute(db, user, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
+        }
         if(req.method==='GET'&&path==='/api/host/garages') return reply(res,{garages:db.prepare('SELECT * FROM garages WHERE owner_id=? ORDER BY created_at DESC').all(user.id)});
         if(req.method==='POST'&&path==='/api/host/garages') {
           limit(db,`listing:${user.id}`,10,HOUR);
@@ -145,8 +156,7 @@ export function makeApp(options={}) {
         }
         if(req.method==='POST'&&path==='/api/reservations') {
           limit(db,`book:${user.id}`,20,15*60000);
-          const data=await body(req),key=text(data,'request_key',16,80);
-          if(!/^[a-zA-Z0-9_-]+$/.test(key)) throw new ApiError('Invalid request key.');
+          const data=await body(req),key=checkedRequestKey(data);
           const previous=db.prepare('SELECT * FROM reservations WHERE guest_id=? AND request_key=?').get(user.id,key);
           if(previous) return reply(res,{reservation:previous},200);
           const period=interval(data),garage=db.prepare("SELECT * FROM garages WHERE id=? AND status='approved'").get(text(data,'garage_id',32,32));

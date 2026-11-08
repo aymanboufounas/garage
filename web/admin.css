@@ -1,0 +1,38 @@
+.staff-page { min-height: 100vh; }
+.staff-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; padding: 18px max(24px, calc((100% - 1160px) / 2)); border-bottom: 1px solid var(--line); }
+.staff-header .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.staff-header .brand img { width: 38px; height: 38px; }
+.staff-header-actions { display: flex; align-items: center; gap: 10px; }
+.staff-main { max-width: 1208px; margin: 0 auto; padding: 38px 24px 56px; }
+.staff-main h1 { margin: 12px 0; font: 750 clamp(30px, 5vw, 52px)/1.12 DM, sans-serif; letter-spacing: -1.5px; }
+.staff-main h2 { margin: 14px 0 8px; overflow-wrap: anywhere; }
+.staff-gate { max-width: 450px; margin: 5vh auto; padding: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+.staff-gate h1 { font-size: 34px; }
+.staff-gate > .text-button { display: inline-block; margin-top: 18px; }
+.staff-layout { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.3fr); gap: 18px; align-items: start; }
+.staff-panel { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: white; }
+.staff-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0 18px; }
+.staff-count { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--mint); }
+.staff-count strong { display: block; font-size: 28px; }
+.staff-count span { display: block; font-size: 13px; }
+.staff-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); margin-top: 0; }
+.staff-filters > label:first-child { grid-column: 1 / -1; }
+.staff-filters button { grid-column: 1 / -1; }
+.staff-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.staff-queue { display: grid; gap: 8px; max-height: 64vh; overflow: auto; margin-top: 16px; }
+.staff-queue .ticket-row[aria-current=true] { background: var(--mint); border-color: var(--green); }
+.staff-ticket-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; background: var(--paper); border-radius: 14px; }
+.staff-ticket-settings .form-error, .staff-ticket-settings button { grid-column: 1 / -1; }
+.staff-thread-panel { scroll-margin-top: 12px; }
+.staff-thread-panel .small { overflow-wrap: anywhere; }
+.staff-notice { padding: 12px 16px; border-radius: 12px; margin: 12px 0; background: var(--mint); }
+.staff-notice.warning { background: #fff1dd; color: #6a3510; }
+@media (max-width: 760px) {
+  .staff-header { padding: 14px; }
+  .staff-main { padding: 22px 14px 42px; }
+  .staff-layout { grid-template-columns: minmax(0, 1fr); }
+  .staff-counts { gap: 8px; }
+  .staff-count { padding: 10px; }
+  .staff-count span { font-size: 11px; }
+  .staff-queue { max-height: 44vh; }
+}

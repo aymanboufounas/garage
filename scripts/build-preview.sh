@@ -21,7 +21,7 @@ PY
   -J "$task_build/generated" -M "$task_build/AndroidManifest.xml" \
   -S "$task_root/android/app/src/main/res" -A "$task_root/android/app/src/main/assets" \
   -I "$task_platform" --min-sdk-version 26 --target-sdk-version 36 \
-  --version-code 3 --version-name 0.2.1-preview -F "$task_build/unsigned.apk"
+  --version-code 4 --version-name 0.3.0-preview -F "$task_build/unsigned.apk"
 find "$task_root/android/app/src/main/java" "$task_build/generated" -name '*.java' > "$task_build/sources.txt"
 javac --release 17 -classpath "$task_platform" -d "$task_build/classes" @"$task_build/sources.txt"
 find "$task_build/classes" -name '*.class' > "$task_build/classes.txt"

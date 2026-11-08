@@ -2,7 +2,7 @@
 
 ## Backend
 
-`npm test` completed with **21 passing checks**, zero failures. Coverage includes calendar months, leap years and invalid dates; HTTPS-only production configuration; rate limiting against forged proxy headers; account session rotation; CSRF and origin rejection; moderation visibility; approximate coordinates; owner/guest permissions; authoritative integer pricing; concurrent overlapping bookings; idempotent requests; private entrances; offer/counter acceptance; competing bookings; cancellation; expiry; database overlap triggers; static file restrictions; and logout revocation.
+`npm test` completed with **31 passing checks** and zero failures. The booking suite covers calendar dates, HTTPS and session security, moderation, private entrances, pricing, concurrent bookings, cancellations and offer expiry. The new tests cover multi-garage requests, competing selections, quote withdrawal, staff access, ticket privacy, reply retries and role revocation.
 
 These are local integration tests using a temporary SQLite database and real HTTP requests. Test identities use example.com addresses and no email is sent. They are not a penetration test or a production load test.
 
@@ -24,7 +24,7 @@ CI may pass `BROWSER_EXECUTABLE` for an installed Chromium. `BROWSER_SINGLE_PROC
 
 ## Android package
 
-The 0.2.1 preview (version code 3) was compiled from the supplied Java source and bundled web assets with Android SDK Platform 36, Build Tools 36.0.0, Eclipse Java compiler and D8, then zip-aligned and signed with a development certificate. APK signature schemes v2 and v3 verified successfully. Package metadata confirms `ma.garageshare.app.preview`, minimum API 26, target API 36, INTERNET and optional coarse-location permissions, and the MainActivity launcher. The signing certificate matches version 0.2.0 so this is an in-place preview update.
+The 0.3.0 preview (version code 4) was compiled from the Java source and bundled web assets with Android SDK Platform 36, Build Tools 36.0.0, Eclipse Java compiler and D8. Zip alignment, APK signature schemes v2 and v3, and the bundled web files were verified. Package metadata confirms `ma.garageshare.app.preview`, minimum API 26, target API 36, INTERNET and optional coarse-location permissions, and the MainActivity launcher. The signing certificate matches the 0.2.1 preview, allowing an in-place update.
 
 The normal Gradle project and wrapper are included for Android Studio. The build runner could not resolve the Gradle Android plugin over its network, so the delivered APK used the included standalone SDK build path. No Gradle build success is claimed.
 
@@ -45,3 +45,9 @@ The Android container already applies system-bar padding. It now forwards zero s
 The geometry tests emulate WebView viewport changes in Chromium. The native inset adjustment compiled successfully but still needs confirmation on the user's physical phone.
 
 ![Mobile map after the repair](screenshots/map-fixed.webp)
+
+## GarageShare 0.3.0 quotes and support
+
+`node scripts/check-services.cjs` passed **17 browser checks**. On a local live server, a renter sent a monthly price request to two garages, one host matched it, another countered, and the renter confirmed one reservation at the chosen price. The renter opened a ticket from that booking. A staff account assigned, answered and resolved it, and the renter's reply reopened it. The workflow checked escaped message text, ordinary-account access denial and Arabic dashboard layout at 320 px. The preview run exercised sample host replies, a saved booking, a support conversation and a host's reply to a sample request.
+
+The 18-check interface workflow, 31 localization checks and 39 map layout checks also passed on this version. Browser tests used local fixture accounts and sample data. Physical phone testing and a production deployment are still needed before a public release.

@@ -106,8 +106,28 @@ Run real-device tests for login/logout, location denied/allowed, keyboard resize
 
 ## Operations
 
-Run one Node process with this local SQLite file. Back up the database using SQLite's online backup mechanism or stop the process for a consistent copy of the database plus WAL. Back up approved photos as well. Protect/encrypt backups and test restoration. Avoid copying a live database file alone. Rotate audit data according to your policy; sessions and rate-limit rows are cleaned every minute. Ship account recovery/verified email, real support/reporting, data export/deletion, complete rental/privacy terms and host verification before a public launch.
+Run one Node process with this local SQLite file. Back up the database using SQLite's online backup mechanism or stop the process for a consistent copy of the database plus WAL. Back up approved photos as well. Protect/encrypt backups and test restoration. Avoid copying a live database file alone. Sessions and rate-limit rows are cleaned every minute. Set a retention policy for support conversations as well as reservations and audit records.
 
 OpenStreetMap's public tile service is used for low-volume interactive browsing with visible attribution. It is not an offline tile pack. Choose an appropriate tile provider or your own tile service for sustained production traffic; follow its terms, attribution and caching rules. No Google Maps API key is needed for the included Leaflet map.
 
 References: https://operations.osmfoundation.org/policies/tiles/ and https://developer.android.com/privacy-and-security/risks/unsafe-uri-loading
+
+## Set up the support dashboard
+
+Create a dedicated account in your live GarageShare installation and confirm that you control the account before granting access. Run these commands on the server from the project directory with the same `DATA_DIR` as the running service.
+
+```bash
+npm run admin -- staff-grant YOUR_ACCOUNT_EMAIL admin
+npm run admin -- staff-list
+```
+
+Sign in again at `/admin.html` on your GarageShare domain. Administrators can assign tickets to any staff member. Use the `support` role for agents who reply, update ticket status and take unassigned tickets. To remove access, run `npm run admin -- staff-revoke ACCOUNT_EMAIL`. Granting or revoking a role ends that account's existing sessions. Listing approval and approved photos continue through the server CLI.
+
+## Prepare a public Android release
+
+1. Deploy the live HTTPS service and verify backups, real listings and the full renter, host and support flows on Android devices.
+2. Complete account recovery and email verification, account deletion in the app and on the web, and the operator's privacy and rental policies. Set up staff access and incident handling.
+3. Point the release Android build at the live origin, generate a signed Android App Bundle, and add the listing, privacy policy, Data safety answers and reviewer access in Play Console.
+4. Run the applicable Play Console tests before requesting production access. Personal developer accounts created after November 13, 2023 need a closed test with at least 12 continuously opted-in testers for 14 days.
+
+[Google Play account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) · [Preparing an app for review](https://support.google.com/googleplay/android-developer/answer/9859455) · [Personal account testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465)

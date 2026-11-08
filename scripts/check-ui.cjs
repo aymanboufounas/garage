@@ -29,7 +29,7 @@ const execFile=require('node:util').promisify(require('node:child_process').exec
     const url=route.request().url();
     if(!/^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/.test(url))return route.abort();
     try{
-     if(!tiles.has(url))tiles.set(url,execFile('curl',['--fail','--silent','--show-error','--max-time','20','-A','GarageShare/0.2.1 - Interactive UI Development','-e',base+'/',url],{encoding:'buffer',maxBuffer:1024*1024,timeout:25000}).then(r=>r.stdout));
+     if(!tiles.has(url))tiles.set(url,execFile('curl',['--fail','--silent','--show-error','--max-time','20','-A','GarageShare/0.3.0 - Interactive UI Development','-e',base+'/',url],{encoding:'buffer',maxBuffer:1024*1024,timeout:25000}).then(r=>r.stdout));
      const image=await tiles.get(url);
      if(image.subarray(1,4).toString()!=='PNG')throw new Error('Tile did not return a PNG.');
      await route.fulfill({status:200,contentType:'image/png',body:image});

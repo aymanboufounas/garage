@@ -21,12 +21,12 @@ No proprietary source, private API, brand asset, user data, or competitor accoun
 
 | Tab | Main job |
 | --- | --- |
-| Explore | City → period → garage → dates → confirmation |
+| Explore | Browse a garage, book at the listed price, or request quotes from several garages |
 | Saved | Keep spaces on this device |
-| Trips | Booking status, price offers, private entrance, cancellation |
-| Host | List a garage, review reservations, accept/counter offers |
+| Trips | Compare host quotes, choose one garage, and manage confirmed stays |
+| Host | List a garage, manage bookings, and answer price requests |
 
-The account icon contains authentication and privacy details. One account can host and rent. Map access and location permission are optional; search works with a manually chosen city. The interface supports English, French and Arabic. The saved language selector updates labels, dates, prices, messages and Arabic RTL layout without changing booking identifiers or data.
+The account icon opens authentication, privacy and support. Support is also available from a booking. One account can host and rent. Users can search by city and optionally grant location access for the map. English, French and Arabic share the same bookings and ticket history.
 
 ## Booking rules
 
@@ -40,10 +40,18 @@ The account icon contains authentication and privacy details. One account can ho
 - Either party can cancel before the start. There are no payments or refunds inside this MVP.
 - No recurring billing, automatic extension, security deposit, access key generation, or insurance is implied.
 
+## Competing garage quotes
+
+The renter picks dates, an hourly or monthly duration, a proposed total and up to five approved garages in one city. Invited hosts can match the price, send a counter quote or decline. The renter sees the replies with the garage area, vehicle fit and price in Trips. The final selection checks the stored price and current availability in one database transaction, then creates one confirmed reservation. Requests close on selection, cancellation or expiry. Exact entrance information follows confirmation through the existing booking flow.
+
+## Support
+
+Customers open a ticket from their account or attach a booking they own or host. Staff can search the queue, reply, assign an owner and resolve issues. A customer reply reopens the ticket. The preview includes sample replies for practice on the device.
+
 ## Trust language
 
 The demo never describes sample properties as real or verified. Moderation is a manual review step, not proof of identity, legal ownership or physical safety. The UI contains no fabricated ratings or reviews. Accurate photos and host permission are prerequisites for approval.
 
 ## Next release
 
-Add account recovery and verified email, real photo uploads with metadata stripping and malware/content checks, host verification evidence, in-app handover messaging, support/reporting, and provider-backed payments only after selecting a suitable Moroccan payment/payout provider. These are scope gaps, not features hidden behind inactive buttons.
+Add account recovery, verified email, account deletion, host verification evidence and photo uploads with metadata removal. The current host payment method is pay on arrival.

@@ -41,6 +41,11 @@ export function integer(value,min,max,label='number') {
   if (typeof value!=='number' || !Number.isSafeInteger(value) || value<min || value>max) throw new ApiError(`Choose a valid ${label}.`);
   return value;
 }
+export function checkedRequestKey(data) {
+  const key=text(data,'request_key',16,80);
+  if(!/^[a-zA-Z0-9_-]+$/.test(key)) throw new ApiError('Invalid request key.');
+  return key;
+}
 export const cities=['Casablanca','Rabat','Marrakech','Tangier','Nador','Fes','Meknes'];
 const zone='Africa/Casablanca';
 const zoned=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});

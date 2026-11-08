@@ -39,6 +39,51 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 CREATE TABLE IF NOT EXISTS audit (
  id INTEGER PRIMARY KEY, actor_id TEXT, action TEXT NOT NULL, target_id TEXT, created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS rental_requests (
+ id TEXT PRIMARY KEY, guest_id TEXT NOT NULL REFERENCES users(id),
+ city TEXT NOT NULL, mode TEXT NOT NULL CHECK(mode IN ('hourly','monthly')),
+ starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL CHECK(ends_at>starts_at),
+ units INTEGER NOT NULL CHECK(units>0), proposed_cents INTEGER NOT NULL CHECK(proposed_cents>0),
+ status TEXT NOT NULL CHECK(status IN ('open','booked','cancelled','expired')),
+ expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL,
+ reservation_id TEXT UNIQUE REFERENCES reservations(id),
+ request_key TEXT NOT NULL, UNIQUE(guest_id,request_key),
+ CHECK((status='booked')=(reservation_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS rental_requests_guest ON rental_requests(guest_id,created_at);
+CREATE INDEX IF NOT EXISTS rental_requests_expiry ON rental_requests(status,expires_at);
+CREATE TABLE IF NOT EXISTS rental_quotes (
+ id TEXT PRIMARY KEY, request_id TEXT NOT NULL REFERENCES rental_requests(id) ON DELETE CASCADE,
+ garage_id TEXT NOT NULL REFERENCES garages(id),
+ status TEXT NOT NULL CHECK(status IN ('invited','quoted','declined')),
+ total_cents INTEGER CHECK(total_cents>0),
+ CHECK((status='quoted')=(total_cents IS NOT NULL)),
+ UNIQUE(request_id,garage_id)
+);
+CREATE INDEX IF NOT EXISTS rental_quotes_garage ON rental_quotes(garage_id);
+CREATE TABLE IF NOT EXISTS staff_members (
+ user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ role TEXT NOT NULL CHECK(role IN ('admin','support'))
+);
+CREATE TABLE IF NOT EXISTS support_tickets (
+ id TEXT PRIMARY KEY, customer_id TEXT NOT NULL REFERENCES users(id),
+ reservation_id TEXT REFERENCES reservations(id) ON DELETE SET NULL,
+ category TEXT NOT NULL CHECK(category IN ('booking','listing','account','other')),
+ subject TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('open','waiting','resolved')),
+ assignee_id TEXT REFERENCES staff_members(user_id) ON DELETE SET NULL,
+ created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+ request_key TEXT NOT NULL, UNIQUE(customer_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS support_tickets_queue ON support_tickets(status,updated_at);
+CREATE INDEX IF NOT EXISTS support_tickets_customer ON support_tickets(customer_id,updated_at);
+CREATE TABLE IF NOT EXISTS support_messages (
+ id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+ author_id TEXT NOT NULL REFERENCES users(id),
+ author_kind TEXT NOT NULL CHECK(author_kind IN ('customer','staff')),
+ message TEXT NOT NULL, created_at INTEGER NOT NULL, request_key TEXT NOT NULL,
+ UNIQUE(ticket_id,author_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS support_messages_thread ON support_messages(ticket_id,created_at);
 -- A last line of defence against overlapping confirmed bookings, including direct writes.
 CREATE TRIGGER IF NOT EXISTS no_overlap_insert BEFORE INSERT ON reservations
 WHEN NEW.status='confirmed'
