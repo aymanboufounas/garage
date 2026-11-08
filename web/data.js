@@ -162,7 +162,7 @@ export const repo={
     }
    }catch{}
   }
-  return {demo:isDemo,user:isDemo?demoUser:session.user};
+  return {demo:isDemo,user:isDemo?demoUser:session.user,googleSignIn:config.google_sign_in===true,googleAndroid:config.google_android===true};
  },
  async garages(){
   if(!isDemo)return (await api('/garages')).garages;
@@ -173,6 +173,8 @@ export const repo={
   });
  },
  async signIn(data,register){if(isDemo)return demoUser;return (await api(register?'/register':'/login','POST',data)).user;},
+ async prepareGoogle(channel){return (await api('/auth/google/start','POST',{channel})).url;},
+ async finishGoogle(proof){return (await api('/auth/google/finish','POST',{proof})).user;},
  async signOut(){if(!isDemo)await api('/logout','POST',{});},
  async listings(){return isDemo?preview.garages:(await api('/host/garages')).garages;},
  async createListing(data){

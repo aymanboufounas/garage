@@ -13,7 +13,9 @@ python3 - "$task_root" "$task_build" <<'PY'
 import pathlib,sys,xml.etree.ElementTree as E
 root,build=map(pathlib.Path,sys.argv[1:]);ns='{http://schemas.android.com/apk/res/android}'
 tree=E.parse(root/'android/app/src/main/AndroidManifest.xml');manifest=tree.getroot();manifest.set('package','ma.garageshare.app.preview')
-app=manifest.find('application');app.set(ns+'debuggable','true');app.find('activity').set(ns+'name','ma.garageshare.app.MainActivity')
+app=manifest.find('application');app.set(ns+'debuggable','true');activity=app.find('activity');activity.set(ns+'name','ma.garageshare.app.MainActivity')
+for intent_filter in activity.findall('intent-filter'):
+ if intent_filter.get(ns+'autoVerify')=='true': activity.remove(intent_filter)
 E.register_namespace('android',ns[1:-1]);tree.write(build/'AndroidManifest.xml',encoding='utf-8',xml_declaration=True)
 (build/'generated/ma/garageshare/app/BuildConfig.java').write_text('package ma.garageshare.app; public final class BuildConfig { public static final boolean DEBUG=true; public static final String SERVER_URL=""; }')
 PY
@@ -21,7 +23,7 @@ PY
   -J "$task_build/generated" -M "$task_build/AndroidManifest.xml" \
   -S "$task_root/android/app/src/main/res" -A "$task_root/android/app/src/main/assets" \
   -I "$task_platform" --min-sdk-version 26 --target-sdk-version 36 \
-  --version-code 7 --version-name 0.6.0-preview -F "$task_build/unsigned.apk"
+  --version-code 8 --version-name 0.7.0-preview -F "$task_build/unsigned.apk"
 find "$task_root/android/app/src/main/java" "$task_build/generated" -name '*.java' > "$task_build/sources.txt"
 javac --release 17 -classpath "$task_platform" -d "$task_build/classes" @"$task_build/sources.txt"
 find "$task_build/classes" -name '*.class' > "$task_build/classes.txt"

@@ -13,7 +13,7 @@ An original Android garage marketplace for Morocco, rebuilt from the GarageShare
 
 Install `dist/GarageShare-preview.apk` on Android 8 or newer with an up-to-date Android System WebView. Android will ask you to allow installation from the app opening the APK. This is a development-signed preview, not a Play Store release.
 
-Preview **0.6.0** improves the mobile map and adds driving directions from confirmed bookings. The APK can update the previous GarageShare preview while keeping its saved data.
+GarageShare **0.7.0** adds Google sign-in for configured live installations. The APK can update the previous GarageShare preview while keeping its saved data. The preview uses its sample account. [Enable Google sign-in on your server](docs/DEPLOYMENT.md#enable-google-sign-in)
 
 The APK bundles the interface, fonts (including Cairo for Arabic), and fictional garage images. Use the header language selector for **Français**, **العربية** (RTL), or English. The choice is saved on the device. It works without an account or server. Map tiles require internet. All bookings, offers, host responses, and approvals in this preview are simulations stored only on the device. Nothing is paid or reserved in real life.
 
@@ -60,6 +60,7 @@ Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser p
 | Area | Implemented |
 | --- | --- |
 | Android | Java Activity with a restricted WebView, bundled preview, native back handling and optional coarse location permission |
+| Accounts | Email and password, optional Google sign-in, and explicit linking from account settings |
 | Discovery | Seven Moroccan cities, neighbourhood search, hourly/monthly prices, filters, sorting, saved spaces, OpenStreetMap/Leaflet map |
 | Reservations | Server-calculated integer prices, calendar-month dates in Africa/Casablanca, conflict prevention, idempotent creation, free cancellation before the start |
 | Arrival | Private entrance map and Google Maps driving directions for the renter of a confirmed upcoming or ongoing booking |

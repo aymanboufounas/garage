@@ -12,6 +12,8 @@ const state={page:'explore',city:'Casablanca',mode:'hourly',query:'',filters:new
 try{state.saved=new Set(JSON.parse(localStorage.getItem('garageshare-saved')||'[]').filter(x=>typeof x==='string'));}catch{}
 let map=null,markerLayer=null,picker=null,modalGarage=null,bookingKey='',lastFocus=null,renderVersion=0,afterAuth=null,mapScrollY=0;
 const mobileQuery=window.matchMedia('(max-width:760px)');
+const androidShell=/ GarageShare\/[^ ]+ Android\b/.test(navigator.userAgent);
+let googleSignIn=false;
 let activeChat=null;
 let arrivalMap=null;
 let mapResultKey=null;
@@ -206,6 +208,36 @@ function removeModalMaps() {
  if(arrivalMap){arrivalMap.remove();arrivalMap=null;}
 }
 
+function googleChoice(connect=false) {
+ if(state.demo)return connect?`<p class="small">${h('googlePreviewNote')}</p>`:'';
+ if(!googleSignIn)return '';
+ if(connect&&state.user?.google_connected)return `<p class="small">${h('googleConnected')}</p>`;
+ return `<div class="google-choice">
+  <a class="google-button" aria-disabled="true"><img src="/assets/google-g.png" alt="">${h(connect?'googleConnect':'googleContinue')}</a>
+  <p class="small google-progress" role="status"></p>
+  ${androidShell?`<p class="small">${h('googleBrowserNote')}</p>`:''}
+  <button class="text-button" type="button" data-action="google-retry" hidden>${h('googleNewLink')}</button>
+ </div>`;
+}
+
+async function prepareGoogleChoice() {
+ const choice=$('.sheet .google-choice');
+ if(!choice)return;
+ const link=$('.google-button',choice),status=$('.google-progress',choice),retry=$('[data-action="google-retry"]',choice);
+ link.removeAttribute('href');link.setAttribute('aria-disabled','true');
+ retry.hidden=true;status.textContent=t('googlePreparing');
+ try{
+  const url=await repo.prepareGoogle(androidShell?'android':'web');
+  if(!/^\/auth\/google\/start\?flow=[a-f0-9]{64}$/.test(url))throw new Error(t('googleFailed'));
+  if(!choice.isConnected)return;
+  link.href=url;link.removeAttribute('aria-disabled');status.textContent='';
+  link.onclick=()=>{retry.hidden=false;};
+ }catch(error){
+  if(!choice.isConnected)return;
+  status.textContent=localizeError(error.message,language());retry.hidden=false;
+ }
+}
+
 function showModal(html,opener=document.activeElement) {
  if(!$('.sheet'))lastFocus=opener;
  stopChat();removeModalMaps();
@@ -213,6 +245,7 @@ function showModal(html,opener=document.activeElement) {
  $('#modal-root').innerHTML=`<div class="modal-overlay"><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-handle"></div><button class="sheet-close" data-action="close-modal" aria-label="${h('close')}">${icon('close')}</button>${html}</section></div>`;
  document.body.style.overflow='hidden';
  requestAnimationFrame(()=>$('.sheet-close')?.focus({preventScroll:true}));
+ if($('.sheet .google-choice'))void prepareGoogleChoice();
 }
 
 function closeModal() {
@@ -228,10 +261,10 @@ function quote(){const form=$('#booking-form');if(!form)return null;const data=n
 function updateQuote(){try{const q=quote();if(!q)return;$('#price-summary').innerHTML=`<div class="summary-line"><span>${esc(amount(rate(modalGarage)))} × ${esc(duration(q.units,state.mode))}</span><bdi>${esc(amount(q.listed))}</bdi></div><div class="summary-line"><span>${h('platformFee')}</span><bdi>${esc(amount(0))}</bdi></div><div class="summary-line muted"><span>${h('ends',{date:dateLabel(q.end)})}</span><span>${h('moroccoTime')}</span></div><div class="summary-line total"><span>${h(q.action==='offer'?'yourOffer':'totalArrival')}</span><bdi>${esc(amount(q.action==='offer'?q.total_cents:q.listed))}</bdi></div>`;const offer=$('[name="offer"]');offer.min=Math.ceil(q.listed*.6/100);offer.max=Math.floor(q.listed*2/100);}catch{$('#price-summary').textContent=t('validQuote');}}
 function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}</div>`:''}<div class="booking-actions">${!host&&r.status==='confirmed'&&r.ends_at>Date.now()?`<button class="primary route-button" data-action="arrival" data-id="${esc(r.id)}">${icon('directions')}${h('directions')}</button>`:''}${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}${['requested','countered','confirmed'].includes(r.status)?chatButton('reservation',r.id,host?'host':'renter'):''}${r.status==='confirmed'&&r.ends_at<=Date.now()?`<button class="secondary" data-action="stay-review" data-id="${esc(r.id)}">${h('reviewStay')}</button>`:''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
 function hostCard(g){return `<article class="booking-card"><img src="${esc(safeImage(g.image))}" alt="${h('photoPending')}"><div class="booking-info">${badge(g.status)}<h3 class="booking-title">${esc(title(g))}</h3><p class="booking-meta">${esc(g.area)} · ${esc(cityName(g.city))}<br><bdi>${esc(amount(g.hourly_cents))}</bdi> / ${h('hour')} · <bdi>${esc(amount(g.monthly_cents))}</bdi> / ${h('month')}</p><div class="booking-actions">${state.demo&&g.status==='pending'?`<button class="secondary" data-action="approve-demo" data-id="${esc(g.id)}">${h('previewApproval')}</button>`:''}</div>${g.status==='pending'?`<p class="small">${h('listingPending')}</p>`:''}</div></article>`;}
-function auth(register=false,callback=null){if(callback)afterAuth=callback;showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p><form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('agreeTerms')} <button type="button" data-action="privacy" class="support-link">${h('privacyTerms')}</button></p></form></div>`);}
-function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:''}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<button class="secondary" data-action="privacy">${icon('shield')}${h('privacyTerms')}</button><button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
+function auth(register=false,callback=null){if(callback)afterAuth=callback;showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p>${googleChoice()}<form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('agreeTerms')} <button type="button" data-action="privacy" class="support-link">${h('privacyTerms')}</button></p></form></div>`);}
+function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:googleChoice(true)}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<button class="secondary" data-action="privacy">${icon('shield')}${h('privacyTerms')}</button><button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
 function hostForm(){if(!state.user){auth(true,hostForm);return;}showModal(`<div class="sheet-content"><div class="eyebrow">${h('hostFormEyebrow')}</div><h2 id="sheet-title">${h('hostFormTitle')}</h2><p class="small">${h('privateEntrance')}</p><form id="host-form" class="form"><label class="field">${h('garageName')}<input name="name" placeholder="${h('garageNameHint')}" minlength="3" maxlength="100" required></label><div class="two-fields"><label class="field">${h('city')}<select name="city" id="host-city">${cityOptions(state.city)}</select></label><label class="field">${h('neighbourhood')}<input name="area" placeholder="${h('areaHint')}" minlength="2" maxlength="100" required></label></div><label class="field">${h('address')}<input name="address" placeholder="${h('addressHint')}" minlength="5" maxlength="220" required><small>${h('privateAddressHint')}</small></label><label class="field">${h('placePin')}</label><div class="location-select-map"><div id="picker-map" class="map"></div></div><input type="hidden" name="latitude" value=""><input type="hidden" name="longitude" value=""><span class="small" id="pin-label">${h('pinRequired')}</span><div class="two-fields"><label class="field">${h('hourlyPrice')}<input name="hourly" type="number" min="1" max="1000" step="1" placeholder="12" required></label><label class="field">${h('monthlyPrice')}<input name="monthly" type="number" min="100" max="100000" step="1" placeholder="950" required></label></div><div class="two-fields"><label class="field">${h('vehicleSize')}<select name="vehicle_size"><option value="compact">${h('compact')}</option><option value="suv">${h('carSUV')}</option><option value="van">${h('carVan')}</option></select></label><label class="field">${h('heightCm')}<input name="height_cm" type="number" min="140" max="500" step="1" placeholder="220" required></label></div><label class="field">${h('parkingType')}<select name="covered"><option value="yes">${h('coveredGarage')}</option><option value="no">${h('outdoorSpace')}</option></select></label><label class="field">${h('renterInfo')}<textarea name="description" minlength="10" maxlength="1500" placeholder="${h('descriptionHint')}" required></textarea></label><div class="photo-choice">${icon('camera')}<span>${h('accuratePhotos')}</span></div><div class="notice">${icon('shield')}<span>${h('hostConsent')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(state.demo?'submitPreview':'submitReview')}${icon('arrow')}</button></form></div>`);if(!globalThis.L){$('#pin-label').textContent=t('mapHostUnavailable');return;}picker=L.map('picker-map',{scrollWheelZoom:false}).setView(cityCenters[state.city],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(picker);let pin;picker.on('click',e=>{if(pin)pin.remove();pin=L.marker(e.latlng).addTo(picker);$('[name="latitude"]').value=e.latlng.lat.toFixed(7);$('[name="longitude"]').value=e.latlng.lng.toFixed(7);$('#pin-label').textContent=t('entranceSelected',{coordinates:e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5)});});requestAnimationFrame(()=>picker?.invalidateSize());}
-function privacy(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('privacyEyebrow')}</div><h2 id="sheet-title">${h('privacyTitle')}</h2><div class="privacy-copy">${['Booking','Location','Trust','Preview'].map(section=>`<h3>${h('privacy'+section+'Title')}</h3><p>${h('privacy'+section)}</p>`).join('')}</div></div>`);}
+function privacy(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('privacyEyebrow')}</div><h2 id="sheet-title">${h('privacyTitle')}</h2><div class="privacy-copy">${['Booking','Location',...(googleSignIn?['Google']:[]),'Trust','Preview'].map(section=>`<h3>${h('privacy'+section+'Title')}</h3><p>${h('privacy'+section)}</p>`).join('')}</div></div>`);}
 async function readAvailability({city,starts_at,mode,units}) {
  const {period,garages}=await repo.availableGarages(city,{starts_at:new Date(starts_at).toISOString(),mode,units});
  return {...period,city,garages};
@@ -449,6 +482,7 @@ document.addEventListener('click',async event=>{
    if(garage){hostCalendar.garageId=garage.id;state.garages=await repo.garages();await render();}
   }
   else if(a==='garage-reviews')await openGarageReviews(gid);
+  else if(a==='google-retry'){await prepareGoogleChoice();}
   else if(a==='arrival'){button.disabled=true;try{await openArrival(gid,button);}finally{button.disabled=false;}}
   else if(a==='stay-review')await openStayReview(gid);
   else if(a==='review-sample-reply'){
@@ -581,5 +615,31 @@ document.addEventListener('submit',async event=>{
 document.addEventListener('keydown',event=>{if(!$('.sheet'))return;if(event.key==='Escape'){closeModal();event.preventDefault();}if(event.key==='Tab'){const elements=[...$('.sheet').querySelectorAll('button:not(:disabled),a[href],input:not([type="hidden"]),select,textarea')].filter(el=>el.getClientRects().length),first=elements[0],last=elements.at(-1);if(event.shiftKey&&document.activeElement===first){last.focus();event.preventDefault();}else if(!event.shiftKey&&document.activeElement===last){first.focus();event.preventDefault();}}});
 window.garageshareBack=()=>{if($('.sheet')){closeModal();return true;}if(state.mapOpen){setMapOpen(false);return true;}if(state.page!=='explore'){navigate('explore');return true;}return false;};
 window.addEventListener('offline',()=>{$('#connection').hidden=false;});window.addEventListener('online',()=>{$('#connection').hidden=true;});
-async function start(){updateChrome();try{const initial=await repo.init();state.demo=initial.demo;state.user=initial.user;state.garages=await repo.garages();await render();}catch(e){main.innerHTML=`<section class="page">${empty('info','connectTitle','connectCopy','retry','reload')}<p class="small">${esc(localizeError(e.message,language()))}</p></section>`;}}
+async function start(){
+ updateChrome();
+ const googleReturn=location.hash.match(/^#google=(failed|[a-f0-9]{64})$/)?.[1];
+ if(googleReturn){
+  const clean=new URL(location.href);
+  if(clean.searchParams.get('google')==='return')clean.searchParams.delete('google');
+  history.replaceState(null,'',clean.pathname+clean.search);
+ }
+ try{
+  const initial=await repo.init();
+  state.demo=initial.demo;state.user=initial.user;
+  googleSignIn=initial.googleSignIn&&(!androidShell||initial.googleAndroid);
+  let googleError='';
+  if(googleReturn&&googleSignIn){
+   if(googleReturn==='failed')googleError=t('googleFailed');
+   else try{state.user=await repo.finishGoogle(googleReturn);}
+   catch(error){googleError=localizeError(error.message,language());}
+  }
+  state.garages=await repo.garages();await render();
+  if(googleError){
+   if(state.user)profile();else auth();
+   $('.sheet-content').insertAdjacentHTML('afterbegin',`<p class="form-error" role="alert">${esc(googleError)}</p>`);
+  }else if(googleReturn&&googleSignIn)toast(t(initial.user?'googleConnected':'welcome'));
+ }catch(error){
+  main.innerHTML=`<section class="page">${empty('info','connectTitle','connectCopy','retry','reload')}<p class="small">${esc(localizeError(error.message,language()))}</p></section>`;
+ }
+}
 start();

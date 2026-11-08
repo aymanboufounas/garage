@@ -1,5 +1,10 @@
 // Shared by the server and browser: API semantics remain stable across languages.
 const messages={
+ 'Google sign-in is unavailable.':['La connexion Google est indisponible.','تسجيل الدخول عبر Google غير متاح.'],
+ 'This Google sign-in expired. Start again in GarageShare.':['Cette connexion Google a expiré. Recommencez depuis GarageShare.','انتهت صلاحية تسجيل الدخول عبر Google. أعد المحاولة من GarageShare.'],
+ 'Choose a Google sign-in channel.':['Choisissez un mode de connexion Google.','اختر طريقة تسجيل الدخول عبر Google.'],
+ 'Choose a Google account with the same email as your GarageShare account.':['Choisissez un compte Google ayant la même adresse e-mail que votre compte GarageShare.','اختر حساب Google الذي يستخدم البريد الإلكتروني نفسه لحساب GarageShare.'],
+ 'Sign in with your password first, then connect Google in your account.':['Connectez-vous d’abord avec votre mot de passe, puis associez Google dans votre compte.','سجّل الدخول بكلمة المرور أولًا، ثم اربط Google من إعدادات حسابك.'],
  'Directions are available for confirmed bookings that have not ended.':['L’itinéraire est disponible pour les réservations confirmées en cours ou à venir.','المسار متاح للحجوزات المؤكدة التي لم تنتهِ بعد.'],
  'The garage entrance is unavailable.':['L’entrée du garage est indisponible.','مدخل المرآب غير متاح.'],
  'The host has blocked this time. Choose another time.':['L’hôte a bloqué cet horaire. Choisissez un autre créneau.','حجب المضيف هذا الموعد. اختر موعدًا آخر.'],

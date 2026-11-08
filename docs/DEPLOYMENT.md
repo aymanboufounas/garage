@@ -98,6 +98,15 @@ docker run -d --name garageshare --restart unless-stopped \
 
 Keep Nginx in front and configure the exact trusted proxy IP only after verifying it in your network. To moderate inside the container, copy an accurate photo to a temporary container path, then run `docker exec garageshare node server/admin.mjs pending` and `docker exec garageshare node server/admin.mjs approve LISTING_ID /tmp/photo.webp`.
 
+## Enable Google sign-in
+
+1. Deploy GarageShare at your HTTPS `APP_ORIGIN` with `NODE_ENV=production`. In Google Auth Platform, set up the GarageShare consent screen and create an OAuth client of type **Web application**. Add the exact authorized redirect URI `https://app.YOUR_DOMAIN/auth/google/callback`. Use your real origin in place of the example. Add your Google account as a test user if your consent screen is in testing. [Google web server OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-server)
+2. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `/etc/garageshare.env` or your hosting provider's server environment. Keep both in server configuration and restart the service. GarageShare requests the `openid`, `email` and `profile` scopes. Open **Account → Sign in or create account → Continue with Google** to test. Existing users can sign in with their password and choose **Connect Google** in Account.
+3. Serve `/.well-known/assetlinks.json` from the same HTTPS host for Android. Set `ANDROID_APP_SHA256` to the colon-separated SHA-256 signing certificate fingerprint for `ma.garageshare.app`. With Play App Signing, use the app signing certificate. For a server-connected debug build of `ma.garageshare.app.preview`, set `ANDROID_PREVIEW_SHA256` to that build's signing certificate fingerprint. The backend generates the association file. Build Android with the same `serverUrl`. Check that Android verifies the host and opens `/auth/google/android-return` in GarageShare. [Verify Android App Links](https://developer.android.com/training/app-links/verify-applinks)
+4. On the phone, choose **Continue with Google**, select the account in the browser, then tap **Return to GarageShare**. The built-in offline preview continues to use its sample account.
+
+Proxy `/auth/google/` and `/.well-known/assetlinks.json` to Node. For `/auth/google/`, turn off proxy access logging or omit query strings to keep OAuth state and codes out of logs. Leave the application session cookie settings intact. The service uses outbound HTTPS to `oauth2.googleapis.com` and `www.googleapis.com`.
+
 ## Connect Android
 
 With the live backend working over HTTPS, set `serverUrl=https://app.YOUR_DOMAIN` in `android/gradle.properties` or pass `-PserverUrl=...` when building. Run `npm run android:assets` after web edits. Generate a signed release in Android Studio with your own private release key. Keep that key backed up securely; it is not included. Release builds without a server origin fail.

@@ -36,6 +36,27 @@ public class MainActivity extends Activity {
             && (uri.getPort() == -1 || uri.getPort() == 443) && uri.getUserInfo() == null;
     }
 
+    private void openBrowser(Uri uri) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW,uri).addCategory(Intent.CATEGORY_BROWSABLE));
+        } catch (android.content.ActivityNotFoundException ignored) { }
+    }
+
+    private String appUrl() {
+        return appOrigin.toString().replaceAll("/$", "") + "/index.html";
+    }
+
+    private boolean finishGoogle(Intent intent) {
+        if (BuildConfig.SERVER_URL.isEmpty() || intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return false;
+        Uri uri = intent.getData();
+        if (uri == null || !trusted(uri) || !"/auth/google/android-return".equals(uri.getEncodedPath()) || uri.getEncodedQuery() != null) return false;
+        String proof = uri.getEncodedFragment();
+        if (proof == null || !proof.matches("[a-f0-9]{64}")) return false;
+        intent.setData(null);
+        web.loadUrl(appUrl() + "?google=return#google=" + proof);
+        return true;
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         final boolean local = BuildConfig.SERVER_URL.isEmpty();
@@ -71,7 +92,7 @@ public class MainActivity extends Activity {
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true); // Required only for our same-origin application.
         settings.setDomStorageEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.6.0 Android");
+        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.7.0 Android");
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -83,10 +104,15 @@ public class MainActivity extends Activity {
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
-                if (trusted(req.getUrl())) return false;
-                if (req.isForMainFrame() && req.hasGesture() && "https".equals(req.getUrl().getScheme())) {
-                    try { startActivity(new Intent(Intent.ACTION_VIEW,req.getUrl()).addCategory(Intent.CATEGORY_BROWSABLE)); } catch(Exception ignored) { }
+                Uri uri = req.getUrl();
+                if (trusted(uri)) {
+                    if (local || !"/auth/google/start".equals(uri.getEncodedPath())) return false;
+                    String query = uri.getEncodedQuery();
+                    if (req.isForMainFrame() && req.hasGesture() && "GET".equals(req.getMethod()) &&
+                        query != null && query.matches("flow=[a-f0-9]{64}") && uri.getEncodedFragment() == null) openBrowser(uri);
+                    return true;
                 }
+                if (req.isForMainFrame() && req.hasGesture() && "https".equals(uri.getScheme())) openBrowser(uri);
                 return true;
             }
             @Override public void onReceivedSslError(WebView view,SslErrorHandler handler,SslError error) { handler.cancel(); }
@@ -121,7 +147,11 @@ public class MainActivity extends Activity {
             }
         });
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,this::goBack);
-        web.loadUrl(appOrigin.toString().replaceAll("/$","")+"/index.html");
+        if (!finishGoogle(getIntent())) web.loadUrl(appUrl());
+    }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        finishGoogle(intent);
     }
     private WebResourceResponse json(String body) { return new WebResourceResponse("application/json","UTF-8",new ByteArrayInputStream(body.getBytes(java.nio.charset.StandardCharsets.UTF_8))); }
     private WebResourceResponse denied() { return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",new HashMap<>(),new ByteArrayInputStream(new byte[0])); }

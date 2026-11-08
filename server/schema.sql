@@ -9,6 +9,17 @@ CREATE TABLE IF NOT EXISTS sessions (
  token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
  csrf TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS google_identities (
+ subject TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+ created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS google_attempts (
+ launch_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL UNIQUE REFERENCES sessions(token_hash) ON DELETE CASCADE,
+ channel TEXT NOT NULL CHECK(channel IN ('web','android')), language TEXT NOT NULL,
+ expires_at INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN ('prepared','opened','verifying','ready')),
+ state_hash TEXT UNIQUE, browser_hash TEXT, nonce TEXT, verifier TEXT, proof_hash TEXT UNIQUE, identity TEXT
+);
+CREATE INDEX IF NOT EXISTS google_attempt_expiry ON google_attempts(expires_at);
 CREATE TABLE IF NOT EXISTS garages (
  id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id),
  name TEXT NOT NULL, city TEXT NOT NULL, area TEXT NOT NULL, address TEXT NOT NULL,

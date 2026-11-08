@@ -59,8 +59,14 @@ const path = require('node:path');
       return (await login.json()).csrf;
     }
     async function signIn(name) {
-      await context.clearCookies();
-      return authenticate(context.request, name);
+      const auth = await request.newContext();
+      try {
+        const csrf = await authenticate(auth, name);
+        await context.addCookies((await auth.storageState()).cookies);
+        return csrf;
+      } finally {
+        await auth.dispose();
+      }
     }
     const nav = name => page.locator(`.bottom-nav [data-page="${name}"]`).click();
     const action = name => page.locator(`[data-action="${name}"]`);
@@ -375,7 +381,8 @@ const path = require('node:path');
     await action('review-sample-reply').click();
     await page.locator('#review-status').filter({ hasText: 'Review published.' }).waitFor();
     check('The preview can publish both sample reviews', await page.locator('.sheet .review-card').count() === 2);
-    check('No uncaught browser errors', errors.length === 0);
+    assert.deepEqual(errors, []);
+    checks.push('No uncaught browser errors');
     console.log(JSON.stringify({ passed: checks.length, checks, errors }, null, 2));
   } finally {
     if (peerApi) await peerApi.dispose();

@@ -1,6 +1,6 @@
 {
   "name": "garageshare",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Hourly and monthly garage rentals: Android app, mobile web app and private booking API",
   "type": "module",

@@ -10,6 +10,7 @@ import { staffRole, supportRoute } from './support.mjs';
 import { chatRoute } from './chat.mjs';
 import { browseGarages, calendarRoute } from './availability.mjs';
 import { garageReviews, reviewsRoute } from './reviews.mjs';
+import { makeGoogleAuth } from './google-auth.mjs';
 
 const MAX_BODY=16000, HOUR=3600000;
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.woff2':'font/woff2','.json':'application/json'};
@@ -24,10 +25,13 @@ export function makeApp(options={}) {
   const trustedProxy=options.trustedProxy||'';
   if(trustedProxy&&!isIP(trustedProxy))throw new Error('TRUST_PROXY_IP must be one exact proxy IP address.');
   if(production&&new URL(origin).protocol!=='https:') throw new Error('Production APP_ORIGIN must use HTTPS.');
+  const google=demo?null:makeGoogleAuth({db,origin,config:options.google,request:options.googleFetch});
   const cookieName=production?'__Host-garageshare':'garageshare_session';
   function safeUser(user) {
     if (!user) return null;
-    return { id: user.id, name: user.name, email: user.email, staff_role: staffRole(db, user.id) };
+    const googleConnected=google&&Boolean(db.prepare('SELECT 1 FROM google_identities WHERE user_id=?').get(user.id));
+    return { id: user.id, name: user.name, email: user.email, staff_role: staffRole(db, user.id),
+      google_connected: google ? googleConnected : undefined };
   }
   // A real hash ensures unknown accounts perform the same password work.
   const dummyHash=passwordHash(randomBytes(32).toString('hex'));
@@ -48,8 +52,11 @@ export function makeApp(options={}) {
   function cookie(res,token) {
     res.setHeader('Set-Cookie',`${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${12*3600}${production?'; Secure':''}`);
   }
+  function readCookie(req,name) {
+    return (req.headers.cookie||'').split(';').map(value=>value.trim()).find(value=>value.startsWith(`${name}=`))?.slice(name.length+1);
+  }
   function session(req,res) {
-    const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(`${cookieName}=`))?.slice(cookieName.length+1);
+    const token=readCookie(req,cookieName);
     const now=Date.now();
     let found=token&&/^[a-f0-9]{64}$/.test(token)?db.prepare('SELECT * FROM sessions WHERE token_hash=? AND expires_at>? AND last_seen>?').get(hash(token),now,now-30*60000):null;
     if(found) { db.prepare('UPDATE sessions SET last_seen=? WHERE token_hash=?').run(now,found.token_hash); return found; }
@@ -59,11 +66,13 @@ export function makeApp(options={}) {
     db.prepare('INSERT INTO sessions(token_hash,user_id,csrf,expires_at,created_at,last_seen) VALUES(?,?,?,?,?,?)').run(found.token_hash,null,found.csrf,found.expires_at,now,now);
     cookie(res,fresh); return found;
   }
-  function signIn(res,oldSession,userId) {
+  function signIn(res,oldSession,selectUserId) {
     const token=randomBytes(32).toString('hex'), csrf=randomBytes(32).toString('hex'),now=Date.now();
-    transaction(db,()=>{
+    const userId=transaction(db,()=>{
+      const uid=selectUserId();
       db.prepare('DELETE FROM sessions WHERE token_hash=?').run(oldSession.token_hash);
-      db.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run(hash(token),userId,csrf,now+12*HOUR,now,now);
+      db.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run(hash(token),uid,csrf,now+12*HOUR,now,now);
+      return uid;
     });
     cookie(res,token);
     return {user:safeUser(db.prepare('SELECT * FROM users WHERE id=?').get(userId)),csrf};
@@ -87,9 +96,15 @@ export function makeApp(options={}) {
     headers(res);
     try {
       const url=new URL(req.url,origin), path=url.pathname;
+      if(google?.appLinks.length&&req.method==='GET'&&path==='/.well-known/assetlinks.json') return reply(res,google.appLinks);
+      if(google&&path.startsWith('/auth/google/')) {
+        limit(db,`google-browser:${clientIP(req)}`,60,60000);
+        return await google.browser(req,res,url,readCookie,readCookie(req,cookieName),requestLanguage(req.headers['accept-language']));
+      }
       if(path.startsWith('/api/')) {
         limit(db,`api:${clientIP(req)}`,240,60000);
-        if(req.method==='GET'&&path==='/api/config') return reply(res,{demo,timezone:'Africa/Casablanca',currency:'MAD',payment_mode:'pay_on_arrival',cities});
+        if(req.method==='GET'&&path==='/api/config') return reply(res,{demo,timezone:'Africa/Casablanca',currency:'MAD',payment_mode:'pay_on_arrival',cities,
+          google_sign_in:Boolean(google),google_android:Boolean(google?.appLinks.length)});
         if(!['GET','POST'].includes(req.method)) { res.setHeader('Allow','GET, POST'); throw new ApiError('Method not allowed.',405); }
         const s=session(req,res), ip=clientIP(req);
         db.prepare("UPDATE reservations SET status='expired',updated_at=? WHERE status IN ('requested','countered') AND expires_at<=?").run(Date.now(),Date.now());
@@ -104,6 +119,13 @@ export function makeApp(options={}) {
           if(!equal(req.headers['x-csrf-token'],s.csrf)) throw new ApiError('Your session expired. Refresh and try again.',403);
         }
         if(demo) throw new ApiError('This preview uses sample data. Switch to a live installation to create real accounts or bookings.',409);
+        if(req.method==='POST'&&['/api/auth/google/start','/api/auth/google/finish'].includes(path)) {
+          if(!google) throw new ApiError('Google sign-in is unavailable.',404);
+          limit(db,`google-auth:${ip}`,40,15*60000);
+          const data=await body(req);
+          if(path.endsWith('/start')) return reply(res,google.prepare(s,data,requestLanguage(req.headers['accept-language'])));
+          return reply(res,signIn(res,s,()=>google.finish(s,data.proof)));
+        }
         if(req.method==='POST'&&['/api/register','/api/login'].includes(path)) {
           limit(db,`auth-ip:${ip}`,20,15*60000);
           const data=await body(req),email=text(data,'email',3,190).toLowerCase();
@@ -115,11 +137,11 @@ export function makeApp(options={}) {
             const name=text(data,'name',2,80), password_hash=await passwordHash(password), uid=id();
             try { db.prepare('INSERT INTO users VALUES(?,?,?,?,?)').run(uid,name,email,password_hash,Date.now()); }
             catch(e) { if(e.code==='ERR_SQLITE_ERROR'&&String(e.message).includes('UNIQUE')) throw new ApiError('This email cannot be registered. Try signing in.',409); throw e; }
-            audit(db,uid,'register',uid); return reply(res,signIn(res,s,uid),201);
+            audit(db,uid,'register',uid); return reply(res,signIn(res,s,()=>uid),201);
           }
           const user=db.prepare('SELECT * FROM users WHERE email=?').get(email);
-          if(!(await passwordMatches(password,user?.password_hash||await dummyHash))||!user) throw new ApiError('Email or password is incorrect.',401);
-          audit(db,user.id,'login',user.id);return reply(res,signIn(res,s,user.id));
+          if(!(await passwordMatches(password,user?.password_hash||await dummyHash))||!user?.password_hash) throw new ApiError('Email or password is incorrect.',401);
+          audit(db,user.id,'login',user.id);return reply(res,signIn(res,s,()=>user.id));
         }
         if(req.method==='POST'&&path==='/api/logout') {
           db.prepare('DELETE FROM sessions WHERE token_hash=?').run(s.token_hash);

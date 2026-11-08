@@ -4,7 +4,9 @@
 
 Passwords use salted scrypt (N=32768, r=8, p=1, 64-byte key). Passwords have a 12–128 character limit. Unknown-account login performs dummy hash work. Session IDs are random 256-bit values; only their SHA-256 hashes are stored. Authentication rotates and revokes the previous session. Cookies are HttpOnly, SameSite=Strict, and production uses Secure plus the `__Host-` prefix. Sessions expire after 30 minutes idle or 12 hours absolute. Logging out revokes the server session.
 
-Every mutation checks the configured request Origin and a random session CSRF token using constant-time comparison. There is no permissive CORS. JSON request size is capped at 16 KB. Password work, account attempts, API calls, session creation, listing submission and booking creation have limits. Do not expose the Node listener to the public network; use the documented HTTPS reverse proxy.
+Application API mutations check the configured request Origin and a random session CSRF token using constant-time comparison. There is no permissive CORS. JSON request size is capped at 16 KB. Password work, account attempts, API calls, session creation, listing submission and booking creation have limits. Do not expose the Node listener to the public network; use the documented HTTPS reverse proxy.
+
+Google sign-in uses an authorization code, PKCE, a browser-bound state and a signed ID token with a nonce, issuer, audience, expiry and verified email checks. A short-lived one-time proof is redeemable only by the original GarageShare session. Successful redemption rotates the session and consumes the attempt in one transaction. Google accounts are identified by the stable subject ID. An existing password account can connect a Google account with the same email from an authenticated session. GarageShare discards Google tokens after verification.
 
 Booking and price-request lookups are scoped to the authenticated renter or actual garage owner. Customers can read and reply to their own support tickets. Staff routes check the role stored on the server on every request. Granting and revoking staff roles uses the server CLI and invalidates sessions for that account. Listing moderation stays in the CLI. The UI escapes customer text, and SQL statements bind user inputs as parameters.
 
@@ -25,6 +27,8 @@ The arrival endpoint checks the renter and booking status on every request and r
 The live app accepts only a compile-time HTTPS origin and validates both scheme and exact host before navigation. It blocks cleartext traffic, mixed content, file/content access and third-party cookies. SSL errors are cancelled. The app exposes no JavaScript-to-native interface. Safe Browsing is enabled. WebView remote debugging is enabled only in development builds. Android backups are disabled. Optional coarse location permission is requested only after the user taps Near me.
 
 The local preview serves bundled assets on `https://appassets.androidplatform.net` through a restricted asset interceptor. Preview requests cannot create live accounts or reservations. Production has no automatic fallback to sample mode if its backend is unreachable.
+
+Android opens the Google authorization page in the external browser from a tapped sign-in link on the configured origin. The verified HTTPS App Link returns a one-time proof in its fragment. The Android app checks the host, path and proof format before passing it to the same-origin web interface. The backend binds redemption to the WebView session and applies the usual CSRF check.
 
 ## Content and storage
 
