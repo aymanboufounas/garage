@@ -10,6 +10,7 @@ test-results/
 android/app/src/main/assets/web/
 dist/*
 !dist/GarageShare-preview.apk
+!dist/GarageShare-website-source.zip
 !dist/ui-validation.json
 !dist/locale-validation.json
 !dist/map-layout-validation.json

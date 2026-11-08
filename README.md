@@ -34,6 +34,8 @@ Try these flows:
 
 ## Run on your computer
 
+The source ZIP includes the website, API, SQLite schema, staff dashboard, and deployment guide. [Download the website source](dist/GarageShare-website-source.zip)
+
 Requires Node.js 24 or newer. There are no third-party backend packages to install.
 
 ```bash
