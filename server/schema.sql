@@ -33,6 +33,21 @@ CREATE TABLE IF NOT EXISTS reservations (
 );
 CREATE INDEX IF NOT EXISTS reservation_availability ON reservations(garage_id,status,starts_at,ends_at);
 CREATE INDEX IF NOT EXISTS reservation_guest ON reservations(guest_id,created_at);
+CREATE TABLE IF NOT EXISTS garage_blocks (
+ id TEXT PRIMARY KEY, garage_id TEXT NOT NULL REFERENCES garages(id) ON DELETE CASCADE,
+ starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL CHECK(ends_at>starts_at),
+ note TEXT NOT NULL, request_key TEXT NOT NULL, created_at INTEGER NOT NULL,
+ UNIQUE(garage_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS garage_blocks_range ON garage_blocks(garage_id,starts_at,ends_at);
+CREATE TABLE IF NOT EXISTS stay_reviews (
+ reservation_id TEXT NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+ author_id TEXT NOT NULL REFERENCES users(id), role TEXT NOT NULL CHECK(role IN ('renter','host')),
+ rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5), comment TEXT NOT NULL,
+ created_at INTEGER NOT NULL, publish_at INTEGER NOT NULL CHECK(publish_at>=created_at),
+ PRIMARY KEY(reservation_id,role)
+);
+CREATE INDEX IF NOT EXISTS stay_reviews_published ON stay_reviews(role,publish_at);
 CREATE TABLE IF NOT EXISTS rate_limits (
  key TEXT PRIMARY KEY, hits INTEGER NOT NULL, resets_at INTEGER NOT NULL
 );
@@ -118,4 +133,36 @@ BEGIN
   SELECT 1 FROM reservations WHERE garage_id=NEW.garage_id AND status='confirmed'
   AND id<>NEW.id AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
  );
+END;
+CREATE TRIGGER IF NOT EXISTS no_blocked_reservation_insert BEFORE INSERT ON reservations
+WHEN NEW.status='confirmed' AND EXISTS (
+ SELECT 1 FROM garage_blocks WHERE garage_id=NEW.garage_id AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
+)
+BEGIN
+ SELECT RAISE(ABORT,'garage_block_conflict');
+END;
+CREATE TRIGGER IF NOT EXISTS no_blocked_reservation_update BEFORE UPDATE ON reservations
+WHEN NEW.status='confirmed' AND EXISTS (
+ SELECT 1 FROM garage_blocks WHERE garage_id=NEW.garage_id AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
+)
+BEGIN
+ SELECT RAISE(ABORT,'garage_block_conflict');
+END;
+CREATE TRIGGER IF NOT EXISTS no_overlapping_block_insert BEFORE INSERT ON garage_blocks
+WHEN EXISTS (
+ SELECT 1 FROM reservations WHERE garage_id=NEW.garage_id AND status='confirmed' AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
+) OR EXISTS (
+ SELECT 1 FROM garage_blocks WHERE garage_id=NEW.garage_id AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
+)
+BEGIN
+ SELECT RAISE(ABORT,'garage_block_conflict');
+END;
+CREATE TRIGGER IF NOT EXISTS no_overlapping_block_update BEFORE UPDATE ON garage_blocks
+WHEN EXISTS (
+ SELECT 1 FROM reservations WHERE garage_id=NEW.garage_id AND status='confirmed' AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
+) OR EXISTS (
+ SELECT 1 FROM garage_blocks WHERE id<>OLD.id AND garage_id=NEW.garage_id AND starts_at<NEW.ends_at AND ends_at>NEW.starts_at
+)
+BEGIN
+ SELECT RAISE(ABORT,'garage_block_conflict');
 END;

@@ -112,6 +112,39 @@ html:not([lang=ar]) .hero h1{font-family:DM,Manrope,sans-serif;font-weight:750}
 .chat-form { margin-top:8px; }
 .chat-form textarea { min-height:64px; }
 .chat-form .primary { justify-self:end; min-width:96px; }
+.availability-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:0 0 14px; }
+.availability-bar > span { font-size:12px; color:var(--muted); }
+.availability-bar .icon { width:16px; height:16px; }
+.calendar-panel { max-width:600px; }
+.calendar-picker { margin:12px 0; }
+.calendar-month { margin:12px 0 8px; }
+.calendar-month .secondary { min-width:42px; padding:6px; font-size:24px; line-height:1; }
+[dir=rtl] .calendar-month .secondary { transform:scaleX(-1); }
+.calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; }
+.calendar-weekday { min-width:0; text-align:center; color:var(--muted); font-size:10px; overflow-wrap:anywhere; }
+.calendar-day { display:grid; align-content:center; justify-items:center; gap:4px; min-width:0; min-height:43px; padding:4px 2px; border:1px solid var(--line); border-radius:9px; background:#fff; font-size:13px; }
+.calendar-day[aria-pressed=true] { background:var(--mint); border-color:var(--green); font-weight:750; }
+.calendar-dots { display:flex; gap:3px; min-height:6px; }
+.calendar-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); }
+.calendar-dot.blocked { background:var(--orange); }
+.calendar-legend { display:flex; gap:8px 15px; flex-wrap:wrap; margin:10px 0; }
+.calendar-legend span { display:inline-flex; align-items:center; gap:5px; }
+.calendar-agenda { margin:12px 0; padding:14px; background:#fff; border:1px solid var(--line); border-radius:14px; }
+.calendar-event { margin-top:9px; padding:9px 10px; background:var(--mint); border-radius:8px; overflow-wrap:anywhere; }
+.calendar-event.blocked { background:#fff1dd; }
+.calendar-event p { margin:4px 0; }
+.rating-badge { display:inline-flex; align-items:center; gap:4px; color:#704b15; font-weight:750; font-size:12px; }
+.rating-badge > span { color:#ad6718; }
+.review-card { margin:10px 0; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fff; overflow-wrap:anywhere; }
+.review-card p { margin:5px 0; }
+.review-comment { white-space:pre-wrap; }
+.rating-options { display:flex; flex-wrap:wrap; gap:6px; min-width:0; margin:0; padding:8px 0 0; border:0; }
+.rating-options legend { font-size:13px; font-weight:750; }
+.rating-options label { position:relative; cursor:pointer; }
+.rating-options input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.rating-options span { display:block; min-width:38px; text-align:center; padding:8px; border:1px solid var(--line); border-radius:8px; }
+.rating-options input:checked + span { background:var(--mint); border-color:var(--green); }
+.rating-options input:focus-visible + span { outline:2px solid var(--green); outline-offset:2px; }
 @media(max-width:420px) {
  .service-fields { grid-template-columns:minmax(0,1fr); }
  .deal-quote > .secondary { flex:1 1 100%; }

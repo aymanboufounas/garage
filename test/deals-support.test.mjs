@@ -318,3 +318,121 @@ test('private chat follows the selected quote through booking and closes with th
     assert.equal((await hostB.call(path)).status, 404);
   });
 });
+
+test('host calendar blocks apply to search, direct bookings and quote acceptance', async t => {
+  const { db, client, garage } = await setup(t);
+  const [host, guest, other] = await Promise.all(['Host', 'Guest', 'Other'].map(name => client().register(name)));
+  const a = await garage(host, 'Calendar garage');
+  const b = await garage(other, 'Available garage');
+  const start = Date.now() + 10 * DAY, end = start + 2 * 3600000;
+  const iso = value => new Date(value).toISOString();
+  const calendar = `/host/calendar/${a}`;
+  const range = '?'+new URLSearchParams({ from: iso(start - DAY), to: iso(end + DAY) });
+  const period = { starts_at: iso(start), mode: 'hourly', units: 2 };
+  const search = data => '/garages?'+new URLSearchParams({ city: 'Nador', ...data });
+  const block = { starts_at: iso(start), ends_at: iso(end), note: 'Private workshop visit', request_key: id() };
+  const request = (await guest.call('/deals', { ...period, city: 'Nador', garage_ids: [a], proposed_cents: 3600, request_key: id() })).json.request;
+  const quote = request.quotes[0];
+  assert.equal((await host.call(`/host/deals/${quote.id}/respond`, { action: 'match' })).status, 200);
+  let blockId;
+  await t.test('only the owner can add or read a block, and retries reuse the same block', async () => {
+    assert.equal((await guest.call(calendar + range)).status, 404);
+    assert.equal((await other.call(calendar + '/blocks', block)).status, 404);
+    assert.equal((await host.call(calendar + '/blocks', block, { 'X-CSRF-Token': 'forged' })).status, 403);
+    assert.equal((await host.call(calendar + '/blocks', { ...block, ends_at: iso(start + 60000) })).status, 422);
+    const saved = await host.call(calendar + '/blocks', block);
+    assert.equal(saved.status, 200);
+    blockId = saved.json.id;
+    assert.equal((await host.call(calendar + '/blocks', block)).json.id, blockId);
+    const agenda = (await host.call(calendar + range)).json;
+    assert.equal(agenda.blocks.length, 1);
+    assert.equal(agenda.blocks[0].note, block.note);
+  });
+  await t.test('hourly and monthly searches hide blocked garages without exposing the reason', async () => {
+    for (const input of [period, { ...period, mode: 'monthly', units: 1 }]) {
+      const result = await guest.call(search(input));
+      assert.equal(result.status, 200);
+      assert.deepEqual(result.json.garages.map(row => row.id), [b]);
+      assert.equal(JSON.stringify(result.json).includes(block.note), false);
+    }
+    assert.equal((await guest.call(search({ ...period, units: 0 }))).status, 422);
+    assert.equal((await guest.call('/reservations', { ...period, garage_id: a, action: 'book', request_key: id() })).status, 409);
+    assert.equal((await guest.call(`/deals/${request.id}/select`, { quote_id: quote.id, total_cents: 3600 })).status, 409);
+    assert.equal((await guest.call('/deals')).json.requests[0].quotes[0].available, 0);
+    assert.throws(() => db.prepare('INSERT INTO reservations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+      id(), a, guest.user.id, 'hourly', start, end, 2, 3600, 'confirmed', null, Date.now(), Date.now(), id()), /garage_block_conflict/);
+  });
+  await t.test('adjacent bookings work and a block cannot override a confirmed booking', async () => {
+    const adjacent = await guest.call('/reservations', { ...period, starts_at: iso(end), garage_id: a, action: 'book', request_key: id() });
+    assert.equal(adjacent.status, 201);
+    assert.equal((await host.call(calendar + '/blocks', { ...block, starts_at: iso(end), ends_at: iso(end + 3600000), request_key: id() })).status, 409);
+    const agenda = (await host.call(calendar + range)).json;
+    assert.equal(agenda.bookings[0].id, adjacent.json.reservation.id);
+    assert.equal(agenda.bookings[0].guest_id, undefined);
+    assert.equal((await guest.call(calendar + `/blocks/${blockId}/remove`, {})).status, 404);
+    assert.equal((await host.call(calendar + `/blocks/${blockId}/remove`, {})).status, 200);
+    assert.equal((await guest.call(search(period))).json.garages.some(row => row.id === a), true);
+    assert.equal((await guest.call(`/deals/${request.id}/select`, { quote_id: quote.id, total_cents: 3600 })).status, 200);
+  });
+});
+
+test('completed booking reviews stay private until both submit or the deadline passes', async t => {
+  const { db, client, garage } = await setup(t);
+  const [host, guest, stranger] = await Promise.all(['Host', 'Guest', 'Stranger'].map(name => client().register(name)));
+  const garageId = await garage(host, 'Review garage');
+  const publicPath = `/garages/${garageId}/reviews`;
+  async function booking(offset) {
+    const result = await guest.call('/reservations', { garage_id: garageId, starts_at: new Date(Date.now() + offset * DAY).toISOString(),
+      mode: 'hourly', units: 1, action: 'book', request_key: id() });
+    assert.equal(result.status, 201);
+    return result.json.reservation.id;
+  }
+  function finish(id, daysAgo) {
+    const end = Date.now() - daysAgo * DAY;
+    db.prepare('UPDATE reservations SET starts_at=?,ends_at=? WHERE id=?').run(end - 3600000, end, id);
+  }
+  const reservationId = await booking(3);
+  const path = `/reviews/${reservationId}`;
+  const rating = { rating: 5, comment: 'Easy arrival. <img src=x onerror=alert(1)>' };
+  await t.test('only the two participants can review a completed stay', async () => {
+    assert.equal((await guest.call(path, rating)).status, 409);
+    assert.equal((await stranger.call(path)).status, 404);
+    finish(reservationId, 1);
+    assert.equal((await guest.call(path, { ...rating, rating: 6 })).status, 422);
+    assert.equal((await stranger.call(path, rating)).status, 404);
+    const submitted = await guest.call(path, { ...rating, role: 'host' });
+    assert.equal(submitted.status, 200);
+    assert.equal(submitted.json.mine.role, 'renter');
+    assert.equal(submitted.json.published, false);
+    assert.equal((await host.call(path)).json.other, null);
+    assert.deepEqual((await client().call(publicPath)).json.reviews, []);
+  });
+  await t.test('the second review publishes both and only renter feedback appears on the listing', async () => {
+    const reply = await host.call(path, { rating: 4, comment: 'Host feedback stays in the trip.' });
+    assert.equal(reply.status, 200);
+    assert.equal(reply.json.published, true);
+    assert.equal(reply.json.other.comment, rating.comment);
+    const publicReviews = (await client().call(publicPath)).json.reviews;
+    assert.equal(publicReviews.length, 1);
+    assert.equal(publicReviews[0].comment, rating.comment);
+    assert.equal(publicReviews[0].author_id, undefined);
+    assert.equal(JSON.stringify(publicReviews).includes(reply.json.mine.comment), false);
+    const listing = (await guest.call('/garages')).json.garages.find(row => row.id === garageId);
+    assert.equal(listing.rating, 5);
+    assert.equal(listing.review_count, 1);
+    assert.equal((await guest.call(path, rating)).json.mine.rating, 5);
+    assert.equal((await guest.call(path, { ...rating, rating: 1 })).status, 409);
+  });
+  await t.test('a single review becomes visible at the deadline and late submissions are rejected', async () => {
+    const prior = await booking(5);
+    finish(prior, 15);
+    const row = db.prepare('SELECT ends_at FROM reservations WHERE id=?').get(prior);
+    db.prepare('INSERT INTO stay_reviews VALUES (?,?,?,?,?,?,?)').run(prior, guest.user.id, 'renter', 3,
+      'Earlier booking review.', row.ends_at + DAY, row.ends_at + 14 * DAY);
+    assert.equal((await host.call(`/reviews/${prior}`)).json.other.rating, 3);
+    assert.equal((await host.call(`/reviews/${prior}`, { rating: 5, comment: '' })).status, 409);
+    const listing = (await guest.call('/garages')).json.garages.find(row => row.id === garageId);
+    assert.equal(listing.rating, 4);
+    assert.equal(listing.review_count, 2);
+  });
+});

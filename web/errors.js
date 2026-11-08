@@ -1,5 +1,15 @@
 // Shared by the server and browser: API semantics remain stable across languages.
 const messages={
+ 'The host has blocked this time. Choose another time.':['L’hôte a bloqué cet horaire. Choisissez un autre créneau.','حجب المضيف هذا الموعد. اختر موعدًا آخر.'],
+ 'Garage calendar not found.':['Calendrier du garage introuvable.','تقويم المرآب غير موجود.'],
+ 'Choose a valid end time with a timezone.':['Choisissez une heure de fin valide avec un fuseau horaire.','اختر وقت انتهاء صالحًا مع المنطقة الزمنية.'],
+ 'Choose a valid calendar range.':['Choisissez une période valide.','اختر فترة صالحة في التقويم.'],
+ 'Block at least 15 minutes within the next year.':['Bloquez au moins 15 minutes au cours des douze prochains mois.','احجب 15 دقيقة على الأقل خلال السنة المقبلة.'],
+ 'Check note.':['Vérifiez la note.','تحقّق من الملاحظة.'],
+ 'Choose a valid star rating.':['Choisissez une note de 1 à 5 étoiles.','اختر تقييمًا من نجمة واحدة إلى خمس نجوم.'],
+ 'Check comment.':['Vérifiez votre commentaire.','تحقّق من تعليقك.'],
+ 'You already reviewed this stay.':['Vous avez déjà évalué cette location.','سبق لك تقييم هذه الإقامة.'],
+ 'Reviews are open for 14 days after a completed stay.':['Vous pouvez laisser un avis pendant les 14 jours suivant la fin d’une location.','يمكنك التقييم خلال 14 يومًا بعد انتهاء الحجز.'],
  'Conversation not found.':['Conversation introuvable.','المحادثة غير موجودة.'],
  'This conversation is read-only.':['Cette conversation est en lecture seule.','هذه المحادثة للقراءة فقط.'],
  'Choose a valid message reference.':['Choisissez une référence de message valide.','اختر مرجع رسالة صالحًا.'],

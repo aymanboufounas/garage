@@ -7,6 +7,7 @@ const path = require('node:path');
 (async () => {
   const { makeApp } = await import('../server/app.mjs');
   const { id, passwordHash } = await import('../server/core.mjs');
+  const { moroccoInput } = await import('../web/icons.js');
   const live = 'http://127.0.0.1:3008';
   const preview = 'http://127.0.0.1:3009';
   const app = makeApp({ database: ':memory:', origin: live });
@@ -194,6 +195,85 @@ const path = require('node:path');
     check('A customer reply reopens their ticket', await page.locator('.sheet .support-message').count() === 3);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    const future = Math.ceil((Date.now() + 45 * 86400000) / 3600000) * 3600000;
+    const starts = moroccoInput(future);
+    const ends = moroccoInput(future + 2 * 3600000);
+    await signIn('HostA');
+    await page.goto(live);
+    await nav('host');
+    await page.locator('[data-tab="calendar"]').click();
+    await action('calendar-block').click();
+    await page.locator('#calendar-block-form [name="start"]').fill(starts);
+    await page.locator('#calendar-block-form [name="end"]').fill(ends);
+    await page.locator('#calendar-block-form [name="note"]').fill('Workshop visit');
+    await submit('#calendar-block-form');
+    await page.locator('#calendar-agenda .calendar-event.blocked').waitFor();
+    check('Host calendar displays the blocked time and private note',
+      (await page.locator('#calendar-agenda .calendar-event.blocked').innerText()).includes('Workshop visit'));
+    await page.setViewportSize({ width: 320, height: 750 });
+    await page.locator('#language').selectOption('ar');
+    await page.locator('#calendar-agenda .calendar-event.blocked').waitFor();
+    check('Arabic calendar fits a compact phone', await page.evaluate(() =>
+      document.documentElement.dir === 'rtl' && document.documentElement.scrollWidth <= innerWidth));
+    await page.locator('.calendar-panel').screenshot({ path: path.join(output, 'calendar-ar.png') });
+    await page.locator('#language').selectOption('en');
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await signIn('Renter');
+    await page.goto(live);
+    await action('availability-form').click();
+    await page.locator('#availability-form [name="start"]').fill(starts);
+    await page.locator('#availability-form [name="units"]').fill('2');
+    await submit('#availability-form');
+    await action('availability-clear').waitFor();
+    check('Date search removes the blocked garage', await page.locator('.garage-card').count() === 1 &&
+      (await page.locator('.garage-card').innerText()).includes('Garage Beta'));
+    await page.locator('.card-image-button').click();
+    await action('book-form').click();
+    check('Booking uses the chosen search date and duration', await page.locator('#booking-form [name="start"]').inputValue() === starts &&
+      await page.locator('#booking-form [name="units"]').inputValue() === '2');
+    await page.locator('.sheet-close').click();
+    await action('availability-clear').click();
+    await page.locator('.garage-card').filter({ hasText: 'Garage Alpha' }).waitFor();
+    checks.push('Clearing dates restores discovery');
+
+    const completed = app.db.prepare('SELECT id FROM reservations WHERE guest_id=?').get(users.Renter);
+    const endOfStay = Date.now() - 86400000;
+    app.db.prepare('UPDATE reservations SET starts_at=?,ends_at=? WHERE id=?').run(endOfStay - 31 * 86400000, endOfStay, completed.id);
+    await nav('trips');
+    await action('stay-review').click();
+    await page.locator('#stay-review-form [name="rating"][value="5"]').check();
+    const reviewComment = 'Easy garage access. <img src=x onerror=alert(1)>';
+    await page.locator('#stay-review-form textarea').fill(reviewComment);
+    await submit('#stay-review-form');
+    await page.locator('#review-status').filter({ hasText: 'private until' }).waitFor();
+    checks.push('A renter can review a completed booking privately');
+
+    await signIn('HostB');
+    await page.goto(live);
+    await nav('host');
+    await page.locator('[data-tab="requests"]').click();
+    await action('stay-review').click();
+    await page.locator('#stay-review-form').waitFor();
+    check('The host cannot see the pending renter review before submitting', await page.locator('.sheet .review-card').count() === 0);
+    await page.locator('#stay-review-form [name="rating"][value="4"]').check();
+    await page.locator('#stay-review-form textarea').fill('A smooth rental.');
+    await submit('#stay-review-form');
+    await page.locator('#review-status').filter({ hasText: 'Review published.' }).waitFor();
+    check('Both reviews appear after both people submit', await page.locator('.sheet .review-card').count() === 2);
+    await page.locator('.sheet-close').click();
+    await nav('explore');
+    const reviewed = page.locator('.garage-card').filter({ hasText: 'Garage Beta' });
+    await reviewed.locator('.rating-badge').waitFor();
+    await reviewed.locator('.card-image-button').click();
+    await action('garage-reviews').click();
+    await page.locator('.sheet .review-card').waitFor();
+    check('The public garage rating shows verified renter feedback as plain text',
+      await page.locator('.sheet .review-card').count() === 1 &&
+      await page.locator('.sheet .review-card img').count() === 0 &&
+      (await page.locator('.sheet .review-comment').innerText()) === reviewComment);
+
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(preview);
     await action('price-request').click();
     await submit('#price-request-form');
@@ -240,6 +320,22 @@ const path = require('node:path');
     await page.locator('[data-response="match"]').click();
     await action('price-respond').filter({ hasText: 'Withdraw' }).waitFor();
     checks.push('The preview lets a host answer a sample price request');
+    await page.locator('[data-tab="calendar"]').click();
+    await action('calendar-block').click();
+    await page.locator('#calendar-block-form [name="start"]').fill(starts);
+    await page.locator('#calendar-block-form [name="end"]').fill(ends);
+    await submit('#calendar-block-form');
+    await page.locator('#calendar-agenda .calendar-event.blocked').waitFor();
+    await action('calendar-unblock').click();
+    await page.locator('#calendar-agenda .calendar-event.blocked').waitFor({ state: 'detached' });
+    checks.push('The preview can block and unblock calendar time');
+    await nav('trips');
+    await action('review-sample-stay').click();
+    await page.locator('#stay-review-form [name="rating"][value="5"]').check();
+    await submit('#stay-review-form');
+    await action('review-sample-reply').click();
+    await page.locator('#review-status').filter({ hasText: 'Review published.' }).waitFor();
+    check('The preview can publish both sample reviews', await page.locator('.sheet .review-card').count() === 2);
     check('No uncaught browser errors', errors.length === 0);
     console.log(JSON.stringify({ passed: checks.length, checks, errors }, null, 2));
   } finally {

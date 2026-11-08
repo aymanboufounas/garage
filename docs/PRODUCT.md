@@ -54,6 +54,14 @@ After a host sends a quote, the renter and that host can ask about fit and arriv
 
 The in-app contact pattern follows [inDrive’s public safety guide](https://indrive.com/fr-ma/safety). GarageShare displays names and garage context to both participants. The offline preview offers sample replies.
 
+## Calendar, available dates and reviews
+
+Hosts see confirmed reservations and can block or unblock time on a Morocco-time calendar. Calendar notes are visible to the garage owner. In Explore, renters can choose a start and an hourly or monthly duration. Only garages available for the entire period appear in the list and on the map. The booking and price-request forms carry those dates forward. Confirmation rechecks the period against bookings and blocks.
+
+Each participant can leave a rating and optional comment within 14 days of a completed booking. Feedback becomes visible after both submit or the window ends. The renter's published review contributes to the public garage rating. The host's review is visible to the renter in the booking's review view.
+
+[Airbnb host calendar](https://www.airbnb.com/help/article/447) · [Airbnb date availability](https://www.airbnb.com/help/article/137) · [Airbnb review rules](https://www.airbnb.com/help/article/13)
+
 ## Trust language
 
 The demo never describes sample properties as real or verified. Moderation is a manual review step, not proof of identity, legal ownership or physical safety. The UI contains no fabricated ratings or reviews. Accurate photos and host permission are prerequisites for approval.

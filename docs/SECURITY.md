@@ -10,6 +10,8 @@ Booking and price-request lookups are scoped to the authenticated renter or actu
 
 Chat checks the two conversation participants on every read, send and read receipt. A quote and the reservation it creates share one conversation. The server enforces participant access independently of staff roles. Sending a message uses the current session identity and the existing origin and CSRF checks. Messages have a size limit, sending is rate limited, and retries with the same request key return the original message. Chat responses omit participant email and private entrance fields. The operator must protect conversation data in the database and backups.
 
+The calendar API scopes reads and writes to the garage owner. Database triggers prevent blocks and confirmed reservations from overlapping, including concurrent updates. Public date search returns available listings. Reviews require the actual participants and a completed reservation. Pending reviews stay private to their author. Public garage reviews expose the rating, comment and date from published renter reviews.
+
 ## Reservations
 
 Money is integer centimes; dates, prices and roles are recomputed or validated on the server. A client cannot lower a listed-price booking by changing its submitted total. SQLite `BEGIN IMMEDIATE` serializes reservation writes, and insert/update triggers independently reject overlapping confirmed reservations. A caller-provided idempotency key scoped to its user prevents duplicate submissions from creating another booking. Availability is rechecked on offer acceptance, including hourly/monthly conflicts. Production supports a single Node process against a local persistent SQLite database; use PostgreSQL with equivalent constraints before horizontal scaling.

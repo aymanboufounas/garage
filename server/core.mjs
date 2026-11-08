@@ -66,13 +66,16 @@ export function addCalendarMonths(at, months) {
   }
   throw new ApiError('This end time falls in a clock change. Choose another start time.');
 }
+export function zonedTimestamp(value, label='start time') {
+  if(typeof value!=='string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d{1,3})?)?(?:Z|[+-]\d\d:\d\d)$/.test(value)) throw new ApiError(`Choose a valid ${label} with a timezone.`);
+  const [year,month,day]=value.slice(0,10).split('-').map(Number);
+  if(month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||Number(value.slice(11,13))>23||Number(value.slice(14,16))>59)throw new ApiError('Choose a valid calendar date and time.');
+  return Date.parse(value);
+}
 export function interval(input,now=Date.now()) {
   const mode=input.mode;
   if(!['hourly','monthly'].includes(mode)) throw new ApiError('Choose hourly or monthly.');
-  if(typeof input.starts_at!=='string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d{1,3})?)?(?:Z|[+-]\d\d:\d\d)$/.test(input.starts_at)) throw new ApiError('Choose a valid start time with a timezone.');
-  const [year,month,day]=input.starts_at.slice(0,10).split('-').map(Number);
-  if(month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||Number(input.starts_at.slice(11,13))>23||Number(input.starts_at.slice(14,16))>59)throw new ApiError('Choose a valid calendar date and time.');
-  const start=Date.parse(input.starts_at);
+  const start=zonedTimestamp(input.starts_at);
   if(!Number.isFinite(start) || start<now+60000 || start>now+366*86400000) throw new ApiError('Choose a start at least one minute ahead, within the next year.');
   const units=integer(input.units,1,mode==='hourly'?168:12,mode==='hourly'?'number of hours (1–168)':'number of months (1–12)');
   const end=mode==='hourly'? start+units*3600000:addCalendarMonths(start,units);
@@ -80,7 +83,16 @@ export function interval(input,now=Date.now()) {
 }
 export function noOverlap(db,garage,start,end,exclude='') {
   if(db.prepare("SELECT id FROM reservations WHERE garage_id=? AND status='confirmed' AND starts_at<? AND ends_at>? AND id<>? LIMIT 1").get(garage,end,start,exclude)) throw new ApiError('This garage was just booked for that time. Choose another time.',409);
+  if(db.prepare('SELECT id FROM garage_blocks WHERE garage_id=? AND starts_at<? AND ends_at>? LIMIT 1').get(garage,end,start)) {
+    throw new ApiError('The host has blocked this time. Choose another time.',409);
+  }
 }
+// This predicate uses the public garage alias and the same half-open intervals as noOverlap.
+export const garageAvailableSql = `NOT EXISTS (
+  SELECT 1 FROM reservations b WHERE b.garage_id=g.id AND b.status='confirmed' AND b.starts_at<? AND b.ends_at>?
+) AND NOT EXISTS (
+  SELECT 1 FROM garage_blocks c WHERE c.garage_id=g.id AND c.starts_at<? AND c.ends_at>?
+)`;
 export function publicGarage(row) {
   // About 400 m precision; private entrance and exact pin are disclosed after confirmation.
   return {
@@ -88,7 +100,8 @@ export function publicGarage(row) {
     latitude:Math.round(row.latitude/0.004)*0.004, longitude:Math.round(row.longitude/0.004)*0.004,
     hourly_cents:row.hourly_cents, monthly_cents:row.monthly_cents, height_cm:row.height_cm,
     vehicle_size:row.vehicle_size, covered:Boolean(row.covered), description:row.description,
-    image:row.image, status:row.status, owner_name:row.owner_name||'GarageShare host', is_demo:false
+    image:row.image, status:row.status, owner_name:row.owner_name||'GarageShare host', is_demo:false,
+    review_count:row.review_count||0, rating:row.rating??null
   };
 }
 export function limit(db,key,max,windowMs,now=Date.now()) {

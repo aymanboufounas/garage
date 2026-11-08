@@ -12,10 +12,10 @@ const dealStatus = status => ['cancelled', 'expired'].includes(status)
   ? `<span class="service-badge ${esc(status)}">${h(`status_${status}`)}</span>` : kindStatus('deal', status);
 export const ticketStatus = status => kindStatus('support', status);
 
-export function priceRequestForm(garages, city, mode) {
+export function priceRequestForm(garages, city, mode, period = null) {
   const now = Date.now();
-  const start = Math.ceil((now + 3600000) / 3600000) * 3600000;
-  const units = mode === 'hourly' ? 3 : 1;
+  const start = period?.starts_at ?? Math.ceil((now + 3600000) / 3600000) * 3600000;
+  const units = period?.units ?? (mode === 'hourly' ? 3 : 1);
   const rate = g => mode === 'hourly' ? g.hourly_cents : g.monthly_cents;
   return `<div class="sheet-content">
     <div class="eyebrow">${esc(cityName(city))} · ${h(mode)}</div>

@@ -4,10 +4,12 @@ import { resolve, sep, extname } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import {localizeError,requestLanguage} from '../web/errors.js';
-import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,publicGarage,limit,audit,checkedRequestKey } from './core.mjs';
+import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,limit,audit,checkedRequestKey } from './core.mjs';
 import { dealsRoute } from './deals.mjs';
 import { staffRole, supportRoute } from './support.mjs';
 import { chatRoute } from './chat.mjs';
+import { browseGarages, calendarRoute } from './availability.mjs';
+import { garageReviews, reviewsRoute } from './reviews.mjs';
 
 const MAX_BODY=16000, HOUR=3600000;
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.woff2':'font/woff2','.json':'application/json'};
@@ -93,10 +95,10 @@ export function makeApp(options={}) {
         db.prepare("UPDATE reservations SET status='expired',updated_at=? WHERE status IN ('requested','countered') AND expires_at<=?").run(Date.now(),Date.now());
         if(req.method==='GET'&&path==='/api/session') return reply(res,{user:safeUser(s.user_id&&db.prepare('SELECT * FROM users WHERE id=?').get(s.user_id)),csrf:s.csrf});
         if(req.method==='GET'&&path==='/api/garages') {
-          const city=url.searchParams.get('city');
-          const rows=city?db.prepare("SELECT g.*,u.name AS owner_name FROM garages g JOIN users u ON u.id=g.owner_id WHERE g.status='approved' AND g.city=? ORDER BY g.created_at DESC LIMIT 200").all(city):db.prepare("SELECT g.*,u.name AS owner_name FROM garages g JOIN users u ON u.id=g.owner_id WHERE g.status='approved' ORDER BY g.created_at DESC LIMIT 200").all();
-          return reply(res,{garages:rows.map(publicGarage)});
+          return reply(res,browseGarages(db,url.searchParams));
         }
+        const publicReview=path.match(/^\/api\/garages\/([a-f0-9]{32})\/reviews$/);
+        if(req.method==='GET'&&publicReview)return reply(res,garageReviews(db,publicReview[1]));
         if(req.method==='POST') {
           if(req.headers.origin!==origin) throw new ApiError('Request origin is not allowed.',403);
           if(!equal(req.headers['x-csrf-token'],s.csrf)) throw new ApiError('Your session expired. Refresh and try again.',403);
@@ -125,6 +127,12 @@ export function makeApp(options={}) {
           return reply(res,{ok:true});
         }
         const user=requireUser(s);
+        if (/^\/api\/host\/calendar(?:\/|$)/.test(path)) {
+          return reply(res, calendarRoute(db, user.id, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
+        }
+        if (/^\/api\/reviews(?:\/|$)/.test(path)) {
+          return reply(res, reviewsRoute(db, user.id, req.method, path, req.method === 'POST' ? await body(req) : {}));
+        }
         if (/^\/api\/chat(?:\/|$)/.test(path)) {
           return reply(res, chatRoute(db, user.id, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
         }
@@ -223,9 +231,11 @@ export function makeApp(options={}) {
     } catch(error) {
       if(res.headersSent) { res.end();return; }
       const overlap=String(error.message).includes('reservation_overlap');
-      const status=error instanceof ApiError?error.status:overlap?409:500;
+      const blocked=String(error.message).includes('garage_block_conflict');
+      const status=error instanceof ApiError?error.status:overlap||blocked?409:500;
       if(status===500) console.error('GarageShare request failed:',error.code||error.name);
-      reply(res,{error:localizeError(error instanceof ApiError?error.message:overlap?'This time was just booked. Choose another time.':'Service unavailable. Please try again.',requestLanguage(req.headers['accept-language']))},status);
+      const conflict=blocked?'The host has blocked this time. Choose another time.':'This time was just booked. Choose another time.';
+      reply(res,{error:localizeError(error instanceof ApiError?error.message:overlap||blocked?conflict:'Service unavailable. Please try again.',requestLanguage(req.headers['accept-language']))},status);
     }
   });
   server.requestTimeout=15000;server.headersTimeout=10000;server.maxHeadersCount=60;

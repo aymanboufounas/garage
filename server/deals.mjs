@@ -1,4 +1,4 @@
-import { ApiError, audit, checkedRequestKey, cities, id, integer, interval, limit, noOverlap, transaction } from './core.mjs';
+import { ApiError, audit, checkedRequestKey, cities, garageAvailableSql, id, integer, interval, limit, noOverlap, transaction } from './core.mjs';
 
 const HOUR = 3600000;
 const recordId = /^[a-f0-9]{32}$/;
@@ -13,14 +13,11 @@ function requestView(db, row) {
   view.quotes = db.prepare(`
     SELECT q.id, q.garage_id, q.status, q.total_cents, g.name, g.area,
            g.covered, g.vehicle_size, u.name AS owner_name,
-           CASE WHEN g.status='approved' AND NOT EXISTS (
-             SELECT 1 FROM reservations b WHERE b.garage_id=g.id
-             AND b.status='confirmed' AND b.starts_at<? AND b.ends_at>?
-           ) THEN 1 ELSE 0 END AS available
+           CASE WHEN g.status='approved' AND ${garageAvailableSql} THEN 1 ELSE 0 END AS available
     FROM rental_quotes q JOIN garages g ON g.id=q.garage_id
     JOIN users u ON u.id=g.owner_id WHERE q.request_id=?
     ORDER BY q.total_cents IS NULL, q.total_cents, g.name
-  `).all(row.ends_at, row.starts_at, row.id);
+  `).all(row.ends_at, row.starts_at, row.ends_at, row.starts_at, row.id);
   return view;
 }
 

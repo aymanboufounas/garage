@@ -1,7 +1,7 @@
 import {endAt} from './icons.js';
 import {language,localizedField} from './i18n.js';
 import { quoteChatOpen, reservationChatOpen } from './chat-policy.js';
-const emptyPreview=()=>({garages:[],reservations:[],deals:[],tickets:[],chats:[]});
+const emptyPreview=()=>({garages:[],reservations:[],deals:[],tickets:[],chats:[],blocks:[],reviews:[]});
 let csrf='', isDemo=false, preview=emptyPreview(), samples=[];
 const key='garageshare-preview-v1';
 const uid=()=>globalThis.crypto?.randomUUID?.().replaceAll('-','')||Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');
@@ -19,9 +19,23 @@ export async function api(path,method='GET',data) {
 const demoUser={id:'preview-user',name:'Explorer',email:'preview@garageshare.local'};
 const day=86400000;
 
-function previewAvailable(garageId, period) {
- return !preview.reservations.some(row => row.garage_id === garageId && row.status === 'confirmed' &&
-  row.starts_at < period.ends_at && row.ends_at > period.starts_at);
+function overlaps(row, period) {
+ return row.starts_at<period.ends_at&&row.ends_at>period.starts_at;
+}
+
+function previewConflict(garageId, period, exclude='') {
+ if(preview.reservations.some(row=>row.garage_id===garageId&&row.id!==exclude&&row.status==='confirmed'&&overlaps(row,period))) {
+  return 'Your preview already has a booking for this time.';
+ }
+ if(preview.blocks.some(row=>row.garage_id===garageId&&overlaps(row,period))) {
+  return 'The host has blocked this time. Choose another time.';
+ }
+ return null;
+}
+
+function checkPreviewAvailability(garageId, period, exclude='') {
+ const conflict=previewConflict(garageId,period,exclude);
+ if(conflict)throw new Error(conflict);
 }
 
 function previewDeal(id) {
@@ -95,6 +109,43 @@ function addPreviewMessage(thread, data) {
 }
 
 const chatPath=(kind,id)=>`/chat/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`;
+const calendarPath=id=>`/host/calendar/${encodeURIComponent(id)}`;
+
+function previewOwnedGarage(id) {
+ const garage=preview.garages.find(row=>row.id===id&&row.owner_id===demoUser.id);
+ if(!garage)throw new Error('Garage calendar not found.');
+ return garage;
+}
+
+function previewReviewStay(id) {
+ const row=preview.reservations.find(item=>item.id===id&&[item.owner_id,item.guest_id].includes(demoUser.id));
+ if(!row)throw new Error('Reservation not found.');
+ return row;
+}
+
+function previewReviewView(stay) {
+ const role=stay.owner_id===demoUser.id?'host':'renter';
+ const now=Date.now(),deadline=stay.ends_at+14*day;
+ const rows=preview.reviews.filter(row=>row.reservation_id===stay.id);
+ const mine=rows.find(row=>row.role===role)||null;
+ const other=rows.find(row=>row.role!==role&&row.publish_at<=now)||null;
+ return {reservation_id:stay.id,garage_name:localizedField(stay,'name'),role,deadline,mine,other,
+  can_review:stay.status==='confirmed'&&stay.ends_at<=now&&now<deadline&&!mine,
+  published:Boolean(mine&&mine.publish_at<=now)};
+}
+
+function addPreviewReview(stay,role,rating,comment,sample=false) {
+ const now=Date.now();
+ const other=preview.reviews.find(row=>row.reservation_id===stay.id&&row.role!==role);
+ if(other)other.publish_at=now;
+ preview.reviews.push({reservation_id:stay.id,garage_id:stay.garage_id,role,rating,comment,sample,
+  created_at:now,publish_at:other?now:stay.ends_at+14*day});
+ save();
+}
+
+function previewPublicReviews(id) {
+ return preview.reviews.filter(row=>row.garage_id===id&&row.role==='renter'&&row.publish_at<=Date.now());
+}
 
 export const repo={
  get demo(){return isDemo;},
@@ -107,13 +158,20 @@ export const repo={
     const stored=JSON.parse(localStorage.getItem(key));
     if(stored&&Array.isArray(stored.garages)&&Array.isArray(stored.reservations)) {
      preview={...stored};
-     for(const field of ['deals','tickets','chats'])if(!Array.isArray(preview[field]))preview[field]=[];
+     for(const field of ['deals','tickets','chats','blocks','reviews'])if(!Array.isArray(preview[field]))preview[field]=[];
     }
    }catch{}
   }
   return {demo:isDemo,user:isDemo?demoUser:session.user};
  },
- async garages(){return isDemo?[...samples,...preview.garages.filter(g=>g.status==='approved')]: (await api('/garages')).garages;},
+ async garages(){
+  if(!isDemo)return (await api('/garages')).garages;
+  return [...samples,...preview.garages.filter(g=>g.status==='approved')].map(garage=>{
+   const reviews=previewPublicReviews(garage.id),count=reviews.length;
+   const rating=count?Math.round(reviews.reduce((sum,row)=>sum+row.rating,0)*10/count)/10:null;
+   return {...garage,review_count:count,rating};
+  });
+ },
  async signIn(data,register){if(isDemo)return demoUser;return (await api(register?'/register':'/login','POST',data)).user;},
  async signOut(){if(!isDemo)await api('/logout','POST',{});},
  async listings(){return isDemo?preview.garages:(await api('/host/garages')).garages;},
@@ -134,7 +192,7 @@ export const repo={
   const start=Date.parse(data.starts_at),end=endAt(start,data.units,data.mode);
   if(start<Date.now()+60000)throw new Error('Choose a start at least one minute ahead.');
   if(!Number.isInteger(data.units)||data.units<1||data.units>(data.mode==='hourly'?168:12))throw new Error('Choose a valid duration.');
-  if(preview.reservations.some(r=>r.garage_id===g.id&&r.status==='confirmed'&&r.starts_at<end&&r.ends_at>start))throw new Error('Your preview already has a booking for this time.');
+  checkPreviewAvailability(g.id,{starts_at:start,ends_at:end});
   const total=(data.mode==='hourly'?g.hourly_cents:g.monthly_cents)*data.units;
   if(data.action==='offer'&&(data.total_cents<total*0.6||data.total_cents>total*2))throw new Error('Your offer must be between 60% and 200% of the listed total.');
   const reservation={id:uid(),garage_id:g.id,guest_id:demoUser.id,owner_id:g.owner_id,name:g.name,city:g.city,area:g.area,image:g.image,owner_name:g.owner_name,guest_name:demoUser.name,starts_at:start,ends_at:end,mode:data.mode,units:data.units,total_cents:data.action==='offer'?data.total_cents:total,listed_cents:total,status:data.action==='offer'?'requested':'confirmed',expires_at:Math.min(Date.now()+86400000,start),is_demo:true};
@@ -148,7 +206,7 @@ export const repo={
   else if(action==='decline')r.status='declined';
   else if(action==='counter'){if(!Number.isInteger(data.total_cents)||data.total_cents<Math.ceil(r.listed_cents*.6)||data.total_cents>r.listed_cents*2)throw new Error('Choose a total between 60% and 200% of the listed total.');r.total_cents=data.total_cents;r.status='countered';}
   else if(action==='accept'){
-   if(preview.reservations.some(x=>x.id!==r.id&&x.garage_id===r.garage_id&&x.status==='confirmed'&&x.starts_at<r.ends_at&&x.ends_at>r.starts_at))throw new Error('This time is already reserved.');
+   checkPreviewAvailability(r.garage_id,r,r.id);
    r.status='confirmed';
   }
   save();return r;
@@ -163,7 +221,7 @@ export const repo={
   if(!isDemo)return (await api('/deals')).requests;
   return preview.deals.filter(deal=>deal.guest_id===demoUser.id).slice().reverse().map(row=>{
    const deal=previewDeal(row.id);
-   const quotes=deal.quotes.map(q=>({...q,available:previewAvailable(q.garage_id,deal)}));
+   const quotes=deal.quotes.map(q=>({...q,available:!previewConflict(q.garage_id,deal)}));
    quotes.sort((a,b)=>(a.total_cents??Infinity)-(b.total_cents??Infinity));
    return {...deal,quotes};
   });
@@ -184,7 +242,7 @@ export const repo={
   const quotes=garageIds.map(gid=>{
    const garage=garages.find(g=>g.id===gid&&g.city===data.city&&g.owner_id!==demoUser.id);
    if(!garage)throw new Error('This garage is unavailable.');
-   if(!previewAvailable(gid,{starts_at:start,ends_at:end}))throw new Error('Your preview already has a booking for this time.');
+   checkPreviewAvailability(gid,{starts_at:start,ends_at:end});
    return previewQuote(garage);
   });
   const deal={id:uid(),guest_id:demoUser.id,city:data.city,mode:data.mode,units:data.units,
@@ -204,7 +262,7 @@ export const repo={
   if(!quote||quote.status!=='quoted'||quote.total_cents!==total)throw new Error('This price quote is no longer available. Refresh your offers.');
   if(deal.reservation_id&&deal.selected_garage_id===quote.garage_id)return {reservation_id:deal.reservation_id};
   if(deal.status!=='open')throw new Error('This price request is closed.');
-  if(!previewAvailable(quote.garage_id,deal))throw new Error('Your preview already has a booking for this time.');
+  checkPreviewAvailability(quote.garage_id,deal);
   const garage=(await repo.garages()).find(g=>g.id===quote.garage_id);
   if(!garage)throw new Error('This garage is unavailable.');
   const reservation={...quote,id:uid(),guest_id:demoUser.id,guest_name:demoUser.name,city:deal.city,image:garage.image,
@@ -241,7 +299,7 @@ export const repo={
    quote.status='declined';quote.total_cents=null;
   }else{
    if(quote.status!=='invited')throw new Error('This action is not available.');
-   if(!previewAvailable(quote.garage_id,deal))throw new Error('Your preview already has a booking for this time.');
+   checkPreviewAvailability(quote.garage_id,deal);
    if(action==='counter'&&(!Number.isSafeInteger(total)||total<100||total>(deal.mode==='hourly'?200000:20000000)*deal.units))throw new Error('Choose a valid total price.');
    quote.status='quoted';quote.total_cents=action==='match'?deal.proposed_cents:total;
   }
@@ -336,6 +394,87 @@ export const repo={
   const thread=previewChat(context,true);
   for(const row of thread.messages)if(row.own&&!row.read_at)row.read_at=Date.now();
   addPreviewMessage(thread,{own:false,sample:context.role==='host'?'renter':'host'});
+ },
+ async availableGarages(city,data){
+  if(!isDemo)return api('/garages?'+new URLSearchParams({city,...data}));
+  const start=Date.parse(data.starts_at),now=Date.now();
+  if(!Number.isFinite(start)||start<now+60000||start>now+366*day)throw new Error('Choose a start at least one minute ahead, within the next year.');
+  if(!['hourly','monthly'].includes(data.mode)||!Number.isInteger(data.units)||data.units<1||data.units>(data.mode==='hourly'?168:12))throw new Error('Choose a valid duration.');
+  const period={mode:data.mode,units:data.units,starts_at:start,ends_at:endAt(start,data.units,data.mode)};
+  const garages=(await repo.garages()).filter(g=>g.city===city&&!previewConflict(g.id,period));
+  return {garages,period};
+ },
+ async calendar(id,from,to){
+  if(!isDemo)return api(calendarPath(id)+'?'+new URLSearchParams({from,to}));
+  previewOwnedGarage(id);
+  const period={starts_at:Date.parse(from),ends_at:Date.parse(to)};
+  return {
+   blocks:preview.blocks.filter(row=>row.garage_id===id&&overlaps(row,period)),
+   bookings:preview.reservations.filter(row=>row.garage_id===id&&row.status==='confirmed'&&overlaps(row,period))
+  };
+ },
+ async blockTime(id,data){
+  if(!isDemo)return api(calendarPath(id)+'/blocks','POST',data);
+  previewOwnedGarage(id);
+  const previous=preview.blocks.find(row=>row.garage_id===id&&row.request_key===data.request_key);
+  if(previous)return {id:previous.id};
+  const now=Date.now(),starts_at=Date.parse(data.starts_at),ends_at=Date.parse(data.ends_at);
+  if(!Number.isFinite(starts_at)||!Number.isFinite(ends_at)||starts_at<now-60000||ends_at>now+366*day||ends_at-starts_at<900000)throw new Error('Block at least 15 minutes within the next year.');
+  checkPreviewAvailability(id,{starts_at,ends_at});
+  const block={id:uid(),garage_id:id,starts_at,ends_at,note:data.note.trim(),request_key:data.request_key};
+  preview.blocks.push(block);save();return {id:block.id};
+ },
+ async unblockTime(id,blockId){
+  if(!isDemo)return api(calendarPath(id)+`/blocks/${encodeURIComponent(blockId)}/remove`,'POST',{});
+  previewOwnedGarage(id);
+  preview.blocks=preview.blocks.filter(row=>row.garage_id!==id||row.id!==blockId);save();
+ },
+ async sampleCalendarGarage(){
+  if(!isDemo)return;
+  const garage=sampleHostGarage();save();return garage;
+ },
+ async garageReviews(id){
+  if(!isDemo)return (await api(`/garages/${encodeURIComponent(id)}/reviews`)).reviews;
+  return previewPublicReviews(id).slice().reverse().slice(0,30);
+ },
+ async stayReview(id){
+  if(!isDemo)return api(`/reviews/${encodeURIComponent(id)}`);
+  return previewReviewView(previewReviewStay(id));
+ },
+ async submitReview(id,data){
+  if(!isDemo)return api(`/reviews/${encodeURIComponent(id)}`,'POST',data);
+  const stay=previewReviewStay(id),view=previewReviewView(stay),comment=data.comment.trim();
+  if(!Number.isInteger(data.rating)||data.rating<1||data.rating>5)throw new Error('Choose a valid star rating.');
+  if(comment.length>1000)throw new Error('Check comment.');
+  if(view.mine){
+   if(view.mine.rating===data.rating&&view.mine.comment===comment)return view;
+   throw new Error('You already reviewed this stay.');
+  }
+  if(!view.can_review)throw new Error('Reviews are open for 14 days after a completed stay.');
+  addPreviewReview(stay,view.role,data.rating,comment);
+  return previewReviewView(stay);
+ },
+ async sampleReviewReply(id){
+  if(!isDemo)return;
+  const stay=previewReviewStay(id),view=previewReviewView(stay);
+  const otherRole=view.role==='host'?'renter':'host';
+  if(view.mine&&Date.now()<view.deadline&&!preview.reviews.some(row=>row.reservation_id===id&&row.role===otherRole)) {
+   addPreviewReview(stay,otherRole,5,'',true);
+  }
+  return previewReviewView(stay);
+ },
+ async sampleCompletedStay(host=false){
+  if(!isDemo)return;
+  const id=host?'preview-host-review':'preview-guest-review';
+  if(!preview.reservations.some(row=>row.id===id)){
+   const garage=host?sampleHostGarage():samples[0],now=Date.now();
+   preview.reservations.push({id,garage_id:garage.id,owner_id:garage.owner_id,guest_id:host?'sample-guest':demoUser.id,
+    name:garage.name,name_fr:garage.name_fr,name_ar:garage.name_ar,city:garage.city,area:garage.area,image:garage.image,
+    owner_name:garage.owner_name,guest_name:host?'Salma':demoUser.name,starts_at:now-4*3600000,ends_at:now-2*3600000,
+    mode:'hourly',units:2,total_cents:garage.hourly_cents*2,status:'confirmed',expires_at:null,is_demo:true});
+   save();
+  }
+  return id;
  },
  resetDemo(){if(isDemo){preview=emptyPreview();save();}}
 };
