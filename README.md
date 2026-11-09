@@ -104,7 +104,7 @@ cd android
 ./gradlew assembleDebug
 ```
 
-On Windows, use `gradlew.bat assembleDebug`. With no `serverUrl`, the debug build is the offline preview.
+On Windows, use `gradlew.bat assembleDebug`. The project now defaults to the live backend at `https://garageshare.xyz`. DNS and HTTPS must work before the app can connect. For the bundled offline preview, run `./gradlew assembleDebug -PserverUrl=` (Windows: `./gradlew.bat assembleDebug -PserverUrl=`).
 
 For a live build, first deploy the backend, then use:
 
@@ -115,6 +115,8 @@ For a live build, first deploy the backend, then use:
 Only HTTPS origins are accepted. Configure your own release signing in Android Studio using **Generate Signed Bundle / APK** and provide the same `serverUrl` Gradle property. Release builds fail if the server URL is missing. Never distribute the preview development key as your release key.
 
 If Gradle dependency access is unavailable, `bash scripts/build-preview.sh` can build the preview using a locally installed JDK and the Android SDK tools without downloading Android libraries. It needs `ANDROID_HOME`, Python 3, and Node 24. The source does not depend on AndroidX or Capacitor.
+
+For the remaining VPS, Android Studio and Play Console steps, follow [the live release checklist](docs/LIVE-RELEASE.md).
 
 ## Validation and limits
 

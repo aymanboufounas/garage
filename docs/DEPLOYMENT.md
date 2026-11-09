@@ -109,7 +109,7 @@ Proxy `/auth/google/` and `/.well-known/assetlinks.json` to Node. For `/auth/goo
 
 ## Connect Android
 
-With the live backend working over HTTPS, set `serverUrl=https://app.YOUR_DOMAIN` in `android/gradle.properties` or pass `-PserverUrl=...` when building. Run `npm run android:assets` after web edits. Generate a signed release in Android Studio with your own private release key. Keep that key backed up securely; it is not included. Release builds without a server origin fail.
+The checked-in `android/gradle.properties` points to `https://garageshare.xyz`. Wait until that domain reaches the VPS with a valid HTTPS certificate before running the connected app. To use a different host, override `-PserverUrl=https://app.YOUR_DOMAIN` when building. For the offline debug preview, pass `-PserverUrl=`. Run `npm run android:assets` after web edits. Generate a signed release in Android Studio with your own private release key. Keep that key backed up securely; it is not included. Release builds without a server origin fail.
 
 Run real-device tests for login/logout, location denied/allowed, keyboard resize, Android back, map failure, bookings from two simultaneous devices, offers, cancellation, and session expiry before distribution. Google Play publishing, domain registration and remote deployment are not performed by this delivery.
 
