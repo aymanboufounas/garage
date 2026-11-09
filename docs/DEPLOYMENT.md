@@ -69,6 +69,16 @@ server {
     ssl_certificate /etc/letsencrypt/live/app.YOUR_DOMAIN/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/app.YOUR_DOMAIN/privkey.pem;
     client_max_body_size 20k;
+    # Bounded photo uploads for authenticated admin moderation only.
+    location /api/staff/garages/ {
+        client_max_body_size 8m;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
+        proxy_read_timeout 30s;
+    }
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -130,7 +140,7 @@ npm run admin -- staff-grant YOUR_ACCOUNT_EMAIL admin
 npm run admin -- staff-list
 ```
 
-Sign in again at `/admin.html` on your GarageShare domain. Administrators can assign tickets to any staff member. Use the `support` role for agents who reply, update ticket status and take unassigned tickets. To remove access, run `npm run admin -- staff-revoke ACCOUNT_EMAIL`. Granting or revoking a role ends that account's existing sessions. Listing approval and approved photos continue through the server CLI.
+Sign in again at `/admin.html` on your GarageShare domain. Administrators can assign tickets to any staff member. Use the `support` role for agents who reply, update ticket status and take unassigned tickets. To remove access, run `npm run admin -- staff-revoke ACCOUNT_EMAIL`. Granting or revoking a role ends that account's existing sessions. Administrators can also review and approve listings with a photo, reject pending listings, and archive approved listings from the Garage moderation section of the same dashboard. Support staff cannot access listing moderation. See ADMIN-MODERATION.md for the existing-VPS update steps.
 
 ## Prepare a public Android release
 

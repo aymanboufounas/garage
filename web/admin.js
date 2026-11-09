@@ -1,3 +1,4 @@
+import { mountModeration } from './moderation.js';
 import { api } from './data.js';
 import { applyDocumentLanguage, language, languageNames, setLanguage, t } from './i18n.js';
 import { dateLabel, esc } from './icons.js';
@@ -17,7 +18,7 @@ let queueRead = 0;
 
 function renderHeader() {
   applyDocumentLanguage();
-  document.title = `${t('staffDashboard')} · GarageShare`;
+  document.title = `${t(state.user?.staff_role === 'admin' ? 'moderationDashboard' : 'staffDashboard')} · GarageShare`;
   $('#staff-header').innerHTML = `<a class="brand" href="./" aria-label="${h('staffBack')}">
     <img src="./assets/logo.svg" alt=""><bdi>GarageShare</bdi></a>
     <div class="staff-header-actions">
@@ -50,8 +51,9 @@ function statusOptions(selected, includeAll = false) {
 
 function renderDashboard() {
   renderHeader();
-  root.innerHTML = `<div class="eyebrow">${h('supportTeam')}</div><h1>${h('staffDashboard')}</h1><p class="page-intro">${h('staffIntro')}</p>
+  root.innerHTML = `<div class="eyebrow">${state.user?.staff_role === 'admin' ? 'GarageShare' : h('supportTeam')}</div><h1>${h(state.user?.staff_role === 'admin' ? 'moderationDashboard' : 'staffDashboard')}</h1><p class="page-intro">${h(state.user?.staff_role === 'admin' ? 'moderationDashboardIntro' : 'staffIntro')}</p>
     <div id="staff-notice" class="staff-notice" role="status" hidden></div>
+    ${state.user?.staff_role === 'admin' ? '<section id="moderation-panel" class="staff-panel"></section>' : ''}
     <div id="staff-counts" class="staff-counts"></div>
     <div class="staff-layout">
       <section class="staff-panel" aria-label="${h('staffAll')}">
@@ -65,6 +67,7 @@ function renderDashboard() {
       </section>
       <section class="staff-panel staff-thread-panel" id="staff-thread" aria-live="polite"></section>
     </div>`;
+  if (state.user?.staff_role === 'admin') mountModeration($('#moderation-panel'), api);
   renderQueue();
   renderTicket();
   root.setAttribute('aria-busy', 'false');

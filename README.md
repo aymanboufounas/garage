@@ -55,7 +55,7 @@ To run a real local installation with an empty database:
 npm start
 ```
 
-Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser profiles: one can host and the other can rent. Every account supports both roles. New host listings stay pending until a moderator approves them using the server CLI. No sample accounts or passwords are added to the live database.
+Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser profiles: one can host and the other can rent. Every account supports both roles. New host listings stay pending until a moderator approves them from the administrator dashboard at `/admin.html` (or the server CLI). No sample accounts or passwords are added to the live database.
 
 ## What is included
 
@@ -73,7 +73,7 @@ Make sure `GARAGESHARE_DEMO` is unset. Create two accounts in separate browser p
 | Reviews | One review per participant after a completed booking. Published renter ratings appear on the garage listing |
 | Hosting | Same-account host dashboard, entrance pin, dimensions, two prices, pending listings, reservation and offer management |
 | Support | Private tickets linked to a booking, customer and staff replies, status filters, staff assignment and resolution at `/admin.html` |
-| Moderation | Server-only CLI, accurate-photo requirement before approval, rejection and archival guards |
+| Moderation | Admin dashboard and server CLI, accurate-photo requirement before approval, rejection and archival guards |
 | Backend | Node.js 24, SQLite WAL, parameterized statements, private sessions, rate limits, audit trail |
 | Brand | Editable SVG logo, Android adaptive icon, colours and typography notes |
 
@@ -117,6 +117,8 @@ Only HTTPS origins are accepted. Configure your own release signing in Android S
 If Gradle dependency access is unavailable, `bash scripts/build-preview.sh` can build the preview using a locally installed JDK and the Android SDK tools without downloading Android libraries. It needs `ANDROID_HOME`, Python 3, and Node 24. The source does not depend on AndroidX or Capacitor.
 
 For the remaining VPS, Android Studio and Play Console steps, follow [the live release checklist](docs/LIVE-RELEASE.md).
+
+Administrators can now approve garages with a photo from `/admin.html`. See [admin moderation setup and VPS update steps](docs/ADMIN-MODERATION.md), including the Nginx upload limit and one-time admin role assignment.
 
 ## Validation and limits
 

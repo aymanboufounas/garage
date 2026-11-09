@@ -1,5 +1,16 @@
 // Shared by the server and browser: API semantics remain stable across languages.
 const messages={
+ 'Administrator access is required.':['Un accès administrateur est requis.','يلزم حساب مسؤول.'],
+ 'Choose a WebP photo under 5 MB.':['Choisissez une photo WebP de moins de 5 Mo.','اختر صورة WebP أقل من 5 ميغابايت.'],
+ 'Choose a valid WebP photo.':['Choisissez une photo WebP valide.','اختر صورة WebP صالحة.'],
+ 'Use a still WebP photo without metadata.':['Utilisez une photo WebP fixe sans métadonnées.','استخدم صورة WebP ثابتة دون بيانات وصفية.'],
+ 'Choose a listing status.':['Choisissez un statut d’annonce.','اختر حالة الإعلان.'],
+ 'Invalid page.':['Page non valide.','الصفحة غير صالحة.'],
+ 'Listing not found.':['Annonce introuvable.','الإعلان غير موجود.'],
+ 'Listing changed. Refresh and try again.':['L’annonce a changé. Actualisez et réessayez.','تغير الإعلان. حدّث الصفحة وحاول مجددًا.'],
+ 'This listing cannot be changed in its current status.':['Cette annonce ne peut pas être modifiée dans son état actuel.','لا يمكن تعديل الإعلان في حالته الحالية.'],
+ 'Confirm the listing and photo review.':['Confirmez la vérification de l’annonce et de la photo.','أكد مراجعة الإعلان والصورة.'],
+ 'Resolve upcoming reservations before archiving or rejecting this space.':['Réglez les réservations à venir avant d’archiver ou de refuser ce garage.','عالج الحجوزات القادمة قبل أرشفة المرآب أو رفضه.'],
  'Google sign-in is unavailable.':['La connexion Google est indisponible.','تسجيل الدخول عبر Google غير متاح.'],
  'This Google sign-in expired. Start again in GarageShare.':['Cette connexion Google a expiré. Recommencez depuis GarageShare.','انتهت صلاحية تسجيل الدخول عبر Google. أعد المحاولة من GarageShare.'],
  'Choose a Google sign-in channel.':['Choisissez un mode de connexion Google.','اختر طريقة تسجيل الدخول عبر Google.'],

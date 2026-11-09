@@ -7,6 +7,7 @@ import {localizeError,requestLanguage} from '../web/errors.js';
 import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,text,integer,cities,interval,noOverlap,limit,audit,checkedRequestKey,hasArrivalAccess } from './core.mjs';
 import { dealsRoute } from './deals.mjs';
 import { staffRole, supportRoute } from './support.mjs';
+import { requireModerator, moderationRoute } from './moderation.mjs';
 import { chatRoute } from './chat.mjs';
 import { browseGarages, calendarRoute } from './availability.mjs';
 import { garageReviews, reviewsRoute } from './reviews.mjs';
@@ -82,11 +83,11 @@ export function makeApp(options={}) {
     if(!user) throw new ApiError('Sign in to continue.',401);
     return user;
   }
-  async function body(req) {
+  async function body(req, maximum=MAX_BODY) {
     if(req.headers['content-type']?.split(';')[0]!=='application/json') throw new ApiError('Send JSON.',415);
-    if(Number(req.headers['content-length'])>MAX_BODY) throw new ApiError('Request too large.',413);
+    if(Number(req.headers['content-length'])>maximum) throw new ApiError('Request too large.',413);
     let size=0, chunks=[];
-    for await(const chunk of req) { size+=chunk.length; if(size>MAX_BODY) throw new ApiError('Request too large.',413); chunks.push(chunk); }
+    for await(const chunk of req) { size+=chunk.length; if(size>maximum) throw new ApiError('Request too large.',413); chunks.push(chunk); }
     let result;
     try { result=JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new ApiError('Invalid JSON.'); }
     if(!result||typeof result!=='object'||Array.isArray(result)) throw new ApiError('Send a JSON object.');
@@ -161,6 +162,13 @@ export function makeApp(options={}) {
         if (/^\/api\/(?:host\/)?deals(?:\/|$)/.test(path)) {
           return reply(res, dealsRoute(db, user.id, req.method, path, req.method === 'POST' ? await body(req) : {}));
         }
+        if (/^\/api\/staff\/garages(?:\/|$)/.test(path)) {
+          requireModerator(db, user);
+          limit(db, `moderation:${user.id}`, 60, 60000);
+          const upload = /^\/api\/staff\/garages\/[a-f0-9]{32}\/approve$/.test(path);
+          return reply(res, moderationRoute(db, web, user, req.method, path, url.searchParams,
+            req.method === 'POST' ? await body(req, upload ? 7*1024*1024 : MAX_BODY) : {}));
+        }
         if (/^\/api\/(?:support|staff)\//.test(path)) {
           return reply(res, supportRoute(db, user, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
         }
@@ -173,7 +181,7 @@ export function makeApp(options={}) {
           if(!['compact','suv','van'].includes(data.vehicle_size)||typeof data.covered!=='boolean') throw new ApiError('Check vehicle size and cover.');
           if(typeof data.latitude!=='number'||!Number.isFinite(data.latitude)||data.latitude<27.5||data.latitude>36||typeof data.longitude!=='number'||!Number.isFinite(data.longitude)||data.longitude< -14||data.longitude> -0.8) throw new ApiError('Place your garage pin inside Morocco.');
           // No arbitrary external image URLs, SVG uploads, tracking images or server-side fetching.
-          // A moderation-approved photo can be assigned through the admin CLI.
+          // A moderation-approved photo can be assigned through the admin dashboard or CLI.
           const gid=id();
           db.prepare('INSERT INTO garages VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(gid,user.id,name,city,area,address,data.latitude,data.longitude,hourly,monthly,height,data.vehicle_size,data.covered?1:0,description,'/assets/garage-placeholder.svg','pending',Date.now());
           audit(db,user.id,'listing_submitted',gid);return reply(res,{id:gid,status:'pending'},201);

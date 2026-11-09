@@ -51,8 +51,8 @@ curl -fsS https://garageshare.xyz/api/config
 
 Open the domain, register a real test host and renter in separate browser
 profiles, and submit a test listing. An empty marketplace is expected: no demo
-listings are inserted in live mode. Pending listings need operator approval with
-an accurate authorized photo (see DEPLOYMENT.md). Test bookings, offers,
+listings are inserted in live mode. Pending listings need administrator approval with
+an accurate authorized photo at `/admin.html` (see ADMIN-MODERATION.md). Test bookings, offers,
 cancellations, messages, and host/support access before opening to customers.
 
 Before updates, back up SQLite with its online backup mechanism, or stop the
