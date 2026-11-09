@@ -8,7 +8,11 @@ const uid=()=>globalThis.crypto?.randomUUID?.().replaceAll('-','')||Array.from(c
 const save=()=>{try{localStorage.setItem(key,JSON.stringify(preview));}catch{throw new Error('Your device storage is full or unavailable.');}};
 export async function api(path,method='GET',data) {
  const result=await fetch(`/api${path}`,{method,credentials:'same-origin',headers:{'Accept-Language':language(),...(method==='POST'?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined});
- let value;try{value=await result.json();}catch{throw new Error('The server could not respond. Try again.');}
+ let value;try{value=await result.json();}catch{
+  const error=new Error(result.status===413?'Photo upload rejected by the web server. Enable the admin upload limit in Nginx.':
+   result.status===502||result.status===503||result.status===504?'Service unavailable. Please try again.':'The server could not respond. Try again.');
+  error.status=result.status;throw error;
+ }
  if(!result.ok) {
   const error=new Error(value.error||'Something went wrong. Try again.');
   error.status=result.status;

@@ -23,6 +23,7 @@ try {
  const context=await browser.newContext({viewport:{width:390,height:844}});await context.addInitScript(()=>localStorage.setItem('garageshare-language','en'));
  page=await context.newPage(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(origin+'/admin.html');await page.locator('[name=email]').fill('admin@example.com');await page.locator('[name=password]').fill(password);await page.locator('#staff-login-form [type=submit]').click();
+ await page.locator('[data-admin-view=garages]').click();
  await page.locator('.moderation-card').waitFor();assert.match(await page.locator('.moderation-card').innerText(),/Browser <img src=x> Garage/);assert.equal(await page.locator('img[src=x]').count(),0);
  await page.locator('[name=photo]').setInputFiles(join(project,'web/assets/garages/garage-01.webp'));await page.locator('.moderation-photo').waitFor({state:'visible'});
  assert.ok(await page.locator('.moderation-photo').evaluate(img=>img.complete&&img.naturalWidth>0));

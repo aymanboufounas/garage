@@ -1,3 +1,5 @@
+import { adminShellCopy } from './admin-shell-copy.js';
+import { adminManagementCopy } from './admin-management-copy.js';
 import { moderationCopy } from './moderation-copy.js';
 import { serviceCopy } from './service-copy.js';
 
@@ -6,6 +8,8 @@ export const languageNames={en:'English',fr:'Français',ar:'العربية'};
 const messages={
  ...serviceCopy,
  ...moderationCopy,
+ ...adminShellCopy,
+ ...adminManagementCopy,
  language:['Language','Langue','اللغة'],
  brandTagline:['A place for your car','Une place pour votre voiture','مكان لسيارتك'],
  pageDescription:['Find a garage for an hour or a month.','Trouvez un garage à l’heure ou au mois.','اعثر على مرآب بالساعة أو بالشهر.'],

@@ -118,7 +118,7 @@ If Gradle dependency access is unavailable, `bash scripts/build-preview.sh` can 
 
 For the remaining VPS, Android Studio and Play Console steps, follow [the live release checklist](docs/LIVE-RELEASE.md).
 
-Administrators can now approve garages with a photo from `/admin.html`. See [admin moderation setup and VPS update steps](docs/ADMIN-MODERATION.md), including the Nginx upload limit and one-time admin role assignment.
+Administrators have an overview with live totals and percentages, garage add/edit/review, account and role management, reservations, and support at `/admin.html`. See the [administration guide](docs/ADMINISTRATION.md). See [admin moderation setup and VPS update steps](docs/ADMIN-MODERATION.md), including the Nginx upload limit and one-time admin role assignment.
 
 ## Validation and limits
 

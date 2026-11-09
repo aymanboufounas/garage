@@ -8,6 +8,7 @@ import { ApiError,id,hash,passwordHash,passwordMatches,openDatabase,transaction,
 import { dealsRoute } from './deals.mjs';
 import { staffRole, supportRoute } from './support.mjs';
 import { requireModerator, moderationRoute } from './moderation.mjs';
+import { adminOperationsRoute } from './admin-operations.mjs';
 import { chatRoute } from './chat.mjs';
 import { browseGarages, calendarRoute } from './availability.mjs';
 import { garageReviews, reviewsRoute } from './reviews.mjs';
@@ -162,6 +163,12 @@ export function makeApp(options={}) {
         if (/^\/api\/(?:host\/)?deals(?:\/|$)/.test(path)) {
           return reply(res, dealsRoute(db, user.id, req.method, path, req.method === 'POST' ? await body(req) : {}));
         }
+        if (/^\/api\/staff\/(?:overview|users|reservations|managed-garages)(?:\/|$)/.test(path)) {
+          requireModerator(db, user);
+          limit(db, `admin-operations:${user.id}`, 120, 60000);
+          return reply(res, await adminOperationsRoute(db, user, req.method, path, url.searchParams,
+            req.method === 'POST' ? await body(req) : {}));
+        }
         if (/^\/api\/staff\/garages(?:\/|$)/.test(path)) {
           requireModerator(db, user);
           limit(db, `moderation:${user.id}`, 60, 60000);
@@ -265,7 +272,7 @@ export function makeApp(options={}) {
       let info;
       try { info=await stat(file); } catch { throw new ApiError('Not found.',404); }
       if(!info.isFile()) throw new ApiError('Not found.',404);
-      res.writeHead(200,{'Content-Type':MIME[extname(file)],'Cache-Control':extname(file)==='.html'?'no-store':'public, max-age=3600'});
+      res.writeHead(200,{'Content-Type':MIME[extname(file)],'Cache-Control':extname(file)==='.html'?'no-store':['.js','.mjs','.css'].includes(extname(file))?'no-cache':'public, max-age=3600'});
       res.end(req.method==='HEAD'?undefined:await readFile(file));
     } catch(error) {
       if(res.headersSent) { res.end();return; }

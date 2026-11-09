@@ -1,15 +1,17 @@
 # Review garages from your administrator account
 
+For the full overview, account and reservation tools, see [Administration](ADMINISTRATION.md).
+
 Open `https://garageshare.xyz/admin.html` after deploying this update. An account
-with the `admin` role sees Garage moderation above the existing support dashboard.
+with the `admin` role sees Garage moderation in the Garages section; Support has its own section in the navigation.
 The account menu in the website/Android app also links to the staff dashboard.
 Ordinary accounts and `support` staff cannot view or change listing moderation.
 
 ## Deploy this update to the existing VPS
 
 Back up the database and approved photos first (see DEPLOYMENT.md). Preserve any
-local repository changes before pulling. No database migration or npm install is
-needed for this change. On the VPS:
+local repository changes before pulling. No manual migration or npm install is needed. Startup idempotently adds the
+administrator cancellation-decision table while retaining existing records. On the VPS:
 
 ```bash
 cd /opt/garageshare

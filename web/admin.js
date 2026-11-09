@@ -1,7 +1,8 @@
+import { mountOverview, mountAccounts, mountReservations } from './admin-management.js';
 import { mountModeration } from './moderation.js';
 import { api } from './data.js';
 import { applyDocumentLanguage, language, languageNames, setLanguage, t } from './i18n.js';
-import { dateLabel, esc } from './icons.js';
+import { dateLabel, esc, icon } from './icons.js';
 import { localizeError } from './errors.js';
 import { supportMessages, supportReplyForm, ticketStatus } from './service-ui.js';
 
@@ -11,7 +12,7 @@ const h = (key, params) => esc(t(key, params));
 const statuses = ['open', 'waiting', 'resolved'];
 const state = {
   user: null, demo: false, queue: null, ticket: null,
-  filters: { status: 'all', q: '', mine: false }
+  view: 'overview', filters: { status: 'all', q: '', mine: false }
 };
 let ticketRead = 0;
 let queueRead = 0;
@@ -49,12 +50,44 @@ function statusOptions(selected, includeAll = false) {
     ${h(value === 'all' ? 'staffAll' : `support_status_${value}`)}</option>`).join('');
 }
 
+async function adminApi(...args) {
+  try { return await api(...args); } catch(error) {
+    if (error.status === 401 && state.user) forgetStaffState();
+    throw error;
+  }
+}
+
+const adminViews = ['overview', 'garages', 'accounts', 'reservations', 'support'];
+const viewIcon = {overview:'calendar', garages:'garage', accounts:'user', reservations:'calendar', support:'chat'};
+function requestedView() {
+  const value = location.hash.slice(1);
+  return adminViews.includes(value) ? value : 'overview';
+}
 function renderDashboard() {
   renderHeader();
-  root.innerHTML = `<div class="eyebrow">${state.user?.staff_role === 'admin' ? 'GarageShare' : h('supportTeam')}</div><h1>${h(state.user?.staff_role === 'admin' ? 'moderationDashboard' : 'staffDashboard')}</h1><p class="page-intro">${h(state.user?.staff_role === 'admin' ? 'moderationDashboardIntro' : 'staffIntro')}</p>
-    <div id="staff-notice" class="staff-notice" role="status" hidden></div>
-    ${state.user?.staff_role === 'admin' ? '<section id="moderation-panel" class="staff-panel"></section>' : ''}
-    <div id="staff-counts" class="staff-counts"></div>
+  const admin = state.user?.staff_role === 'admin';
+  if (!admin) state.view = 'support';
+  const views = admin ? adminViews : ['support'];
+  root.innerHTML = `<div class="admin-shell">
+    <aside class="admin-sidebar" aria-label="${h('adminNavigation')}">
+      <div class="admin-workspace-label">${h('adminWorkspace')}</div>
+      <nav class="admin-nav">${views.map(view => `<button type="button" data-admin-view="${view}" ${state.view === view ? 'aria-current="page"' : ''}><span aria-hidden="true">${icon(viewIcon[view])}</span>${h('adminNav_'+view)}</button>`).join('')}</nav>
+      <div class="admin-identity"><span class="admin-avatar" aria-hidden="true">${esc(state.user.name.slice(0,1).toUpperCase())}</span><div><strong>${esc(state.user.name)}</strong><small>${h(admin ? 'adminRole' : 'adminSupportRole')}</small></div></div>
+      <a class="admin-back" href="./">${h('staffBack')} ↗</a>
+    </aside>
+    <section class="admin-content">
+      <div class="admin-page-heading"><div><div class="eyebrow">GarageShare · ${h('adminWorkspace')}</div><h1>${h('adminNav_'+state.view)}</h1><p class="page-intro">${h('adminIntro_'+state.view)}</p></div>
+      <span class="admin-live"><i></i>${h('adminLive')}</span></div>
+      <div id="staff-notice" class="staff-notice" role="status" hidden></div>
+      <div id="admin-view" aria-live="polite"></div>
+    </section></div>`;
+  const panel = $('#admin-view');
+  if (state.view === 'overview') mountOverview(panel, adminApi, navigate);
+  else if (state.view === 'garages') { panel.innerHTML = '<section id="moderation-panel" class="staff-panel"></section>'; mountModeration($('#moderation-panel'), adminApi); }
+  else if (state.view === 'accounts') mountAccounts(panel, adminApi);
+  else if (state.view === 'reservations') mountReservations(panel, adminApi);
+  else {
+    panel.innerHTML = `    <div id="staff-counts" class="staff-counts"></div>
     <div class="staff-layout">
       <section class="staff-panel" aria-label="${h('staffAll')}">
         <form class="staff-filters form" id="staff-filter-form">
@@ -67,10 +100,17 @@ function renderDashboard() {
       </section>
       <section class="staff-panel staff-thread-panel" id="staff-thread" aria-live="polite"></section>
     </div>`;
-  if (state.user?.staff_role === 'admin') mountModeration($('#moderation-panel'), api);
-  renderQueue();
-  renderTicket();
+    renderQueue(); renderTicket();
+  }
   root.setAttribute('aria-busy', 'false');
+}
+function navigate(view) {
+  if (!adminViews.includes(view) || !state.user?.staff_role) return;
+  state.view = state.user.staff_role === 'admin' ? view : 'support';
+  history.replaceState(null, '', '#'+state.view);
+  ticketRead++;
+  renderDashboard();
+  if (state.view === 'support') fetchQueue().catch(error => showError(error));
 }
 
 function renderQueue() {
@@ -147,7 +187,7 @@ async function signInView() {
     return;
   }
   renderDashboard();
-  await fetchQueue();
+  if (state.view === 'support') await fetchQueue();
 }
 
 function forgetStaffState() {
@@ -171,6 +211,8 @@ function showError(error, form) {
 }
 
 document.addEventListener('click', async event => {
+  const navigation = event.target.closest('[data-admin-view]');
+  if (navigation) { navigate(navigation.dataset.adminView); return; }
   const button = event.target.closest('[data-staff-action]');
   if (!button || button.disabled) return;
   button.disabled = true;
@@ -238,6 +280,8 @@ document.addEventListener('change', event => {
   else renderGate();
 });
 
+window.addEventListener('hashchange', () => { if (state.user?.staff_role) navigate(requestedView()); });
+
 window.garageshareBack = () => {
   location.assign('./');
   return true;
@@ -249,6 +293,7 @@ async function start() {
     const [config, session] = await Promise.all([api('/config'), api('/session')]);
     state.demo = config.demo;
     state.user = session.user;
+    state.view = requestedView();
     await signInView();
   } catch (error) {
     renderGate();

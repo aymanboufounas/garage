@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS reservations (
 );
 CREATE INDEX IF NOT EXISTS reservation_availability ON reservations(garage_id,status,starts_at,ends_at);
 CREATE INDEX IF NOT EXISTS reservation_guest ON reservations(guest_id,created_at);
+CREATE TABLE IF NOT EXISTS admin_reservation_decisions (
+ id INTEGER PRIMARY KEY, reservation_id TEXT NOT NULL UNIQUE REFERENCES reservations(id),
+ actor_id TEXT NOT NULL REFERENCES users(id), reason TEXT NOT NULL,
+ created_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS garage_blocks (
  id TEXT PRIMARY KEY, garage_id TEXT NOT NULL REFERENCES garages(id) ON DELETE CASCADE,
  starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL CHECK(ends_at>starts_at),
