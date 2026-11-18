@@ -122,6 +122,8 @@ Administrators have an overview with live totals and percentages, garage add/edi
 
 Hosts upload their own garage photo when creating a listing or from **Host → My garages → Add/Change photo**. Administrators review and approve the submitted image. See [host photo deployment and Android update steps](docs/HOST-PHOTOS.md).
 
+[Download the unsigned Android App Bundle](dist/GarageShare-0.7.1-unsigned.aab) and follow the [Windows signing steps](docs/ANDROID-BUNDLE.md) before uploading it to Google Play.
+
 ## Validation and limits
 
 Run `npm test`. The suite checks time billing, concurrent overlaps, authoritative prices, idempotency, authorization, offer transitions, CSRF/origins, entrance privacy, database overlap triggers, and session revocation. See `docs/VALIDATION.md` for results from this delivery.
