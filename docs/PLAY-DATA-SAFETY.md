@@ -69,6 +69,11 @@ multilingual spam, harassment, threat, scam or image classifier is implemented.
 
 ## Form checklist before submission
 
+For the French account-creation/deletion choices shown in Play Console, use
+[the screenshot-specific answer guide](PLAY-CONSOLE-ANSWERS.md). In particular,
+the implemented 90-day audit/closed-report cleanup is **not** automatic deletion
+of all user data within 90 days, and does not support selecting that answer.
+
 - [ ] Select the data types actually transmitted/persisted above. Mark linked
   account/user IDs and personal information truthfully; do not select “collects
   no data.” Treat host photos and messaging as feature-optional collection.
