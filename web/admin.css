@@ -214,3 +214,19 @@ progress.admin-progress::-moz-progress-bar { background: #579b79; border-radius:
 .reports-target-message { border-inline-start: 3px solid #d88a46; background: #fff4e7; padding: 12px; }
 .reports-context { margin: 16px 0; }
 .reports-context blockquote { margin: 8px 0; padding: 12px; border-radius: 10px; background: #f1f5f2; overflow-wrap: anywhere; }
+/* Reports: keep long names and references inside the available review column. */
+.reports-admin { min-width: 0; }
+.reports-admin .moderation-detail,
+.reports-admin .moderation-detail h3,
+.reports-admin .moderation-detail p,
+.reports-admin .moderation-detail bdi,
+.reports-admin .moderation-card { overflow-wrap: anywhere; }
+.reports-admin .moderation-detail [data-report-title] { scroll-margin-block-start: 20px; }
+.reports-admin .reports-metrics { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.reports-admin .reports-metrics .admin-metric:last-child { grid-column: auto; }
+.reports-admin .reports-metrics .admin-metric[aria-pressed=true] { border-color: #709882; background: #f1f7f2; }
+.reports-admin [data-reports-queue]:focus-visible { outline: 2px solid #477458; outline-offset: 4px; }
+.reports-admin .report-status-pending { background: #fff0d9; color: #80581e; }
+.reports-admin .report-status-under_review { background: #e5eef8; color: #325d80; }
+.reports-admin .report-status-dismissed { background: #edf0ed; color: #526359; }
+@media(max-width:800px) { .reports-admin .reports-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }

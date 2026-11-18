@@ -37,7 +37,7 @@ export function chatSheet(result, demo, guidelinesVersion='2026-11-18') {
     <div class="eyebrow">${h('chatPrivate')}</div>
     <h2 id="sheet-title">${esc(conversation.peer_name)}</h2><p class="small">${esc(conversation.garage_name)}</p>
     ${demo ? `<p class="small">${h('chatPreview')}</p>` : ''}
-    ${peerSafetyActions(conversation.peer_id,conversation.blocked_by_you,demo)}
+    ${peerSafetyActions(conversation.peer_id,conversation.blocked_by_you,demo,{peerName:conversation.peer_name})}
     <div class="service-heading chat-tools">
       <button class="text-button" data-action="chat-refresh">${h('chatRefresh')}</button>
       <button class="text-button" data-action="chat-older" ${has_older ? '' : 'hidden'}>${h('chatLoadOlder')}</button>

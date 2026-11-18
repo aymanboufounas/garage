@@ -122,6 +122,8 @@ Administrators have an overview with live totals and percentages, garage add/edi
 
 The Play compliance changes add account settings for blocked users, moderation notices and verified account deletion; report controls for profiles, listings, messages and reviews; explicit Community Guidelines acceptance; and an administrator Reports queue. Public policy pages are `/privacy-policy`, `/delete-account` and `/community-guidelines`. These changes are prepared for review and require approved deployment, operator details and staffed human moderation before publication. See the [implementation and release review](docs/PLAY-COMPLIANCE-IMPLEMENTATION.md).
 
+See the [GUI review and fixes](docs/GUI-REVIEW.md) for the account/deletion, user reporting, admin review and multilingual public-page walkthroughs and browser regression commands.
+
 Hosts upload their own garage photo when creating a listing or from **Host → My garages → Add/Change photo**. Administrators review and approve the submitted image. See [host photo deployment and Android update steps](docs/HOST-PHOTOS.md).
 
 [Download the unsigned Android App Bundle](dist/GarageShare-0.7.1-unsigned.aab) and follow the [Windows signing steps](docs/ANDROID-BUNDLE.md) before uploading it to Google Play.

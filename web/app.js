@@ -12,7 +12,7 @@ import { arrivalSheet } from './arrival-ui.js';
 const $=(s,root=document)=>root.querySelector(s),h=(key,params)=>esc(t(key,params));
 const state={page:'explore',city:'Casablanca',mode:'hourly',query:'',filters:new Set(),sort:'recommended',garages:[],priceRequests:[],user:null,demo:false,mapOpen:false,hostTab:'spaces',saved:new Set(),coords:null};
 try{state.saved=new Set(JSON.parse(localStorage.getItem('garageshare-saved')||'[]').filter(x=>typeof x==='string'));}catch{}
-let map=null,markerLayer=null,picker=null,modalGarage=null,bookingKey='',lastFocus=null,renderVersion=0,afterAuth=null,mapScrollY=0;
+let map=null,markerLayer=null,picker=null,modalGarage=null,bookingKey='',lastFocus=null,renderVersion=0,afterAuth=null,mapScrollY=0,modalVersion=0;
 const mobileQuery=window.matchMedia('(max-width:760px)');
 const androidShell=/ GarageShare\/[^ ]+ Android\b/.test(navigator.userAgent);
 let googleSignIn=false;
@@ -242,7 +242,16 @@ async function prepareGoogleChoice() {
  }
 }
 
+const deletionIntentKey='garageshare-auth-intent';
+function rememberDeletionIntent(){try{sessionStorage.setItem(deletionIntentKey,'delete');}catch{}}
+function hasDeletionIntent(){try{if(sessionStorage.getItem(deletionIntentKey)==='delete')return true;}catch{}return new URL(location.href).searchParams.get('delete-account')==='1';}
+function clearDeletionIntent(){
+ try{sessionStorage.removeItem(deletionIntentKey);}catch{}
+ const current=new URL(location.href);
+ if(current.searchParams.get('delete-account')==='1'){current.searchParams.delete('delete-account');history.replaceState(null,'',current.pathname+current.search+current.hash);}
+}
 function showModal(html,opener=document.activeElement) {
+ modalVersion++;
  if(!$('.sheet'))lastFocus=opener;
  stopChat();removeModalMaps();
  clearTimeout(toast.timer);$('#toast').classList.remove('visible');
@@ -253,19 +262,27 @@ function showModal(html,opener=document.activeElement) {
 }
 
 function closeModal() {
+ modalVersion++;afterAuth=null;clearDeletionIntent();
  const refreshInbox=activeChat&&state.page==='messages';
  stopChat();removeModalMaps();$('#modal-root').innerHTML='';document.body.style.overflow='';
  if(lastFocus?.isConnected)lastFocus.focus({preventScroll:true});
  lastFocus=null;
  if(refreshInbox)void render();
 }
-function detail(g){modalGarage=g;showModal(`<img class="detail-image" src="${esc(safeImage(g.image))}" alt="${h(g.is_demo?'sampleIllustration':'photoOf',{name:title(g)})}"><div class="sheet-content"><div class="eyebrow">${h(g.is_demo?'detailEyebrowSample':'detailEyebrow')}</div><h2 id="sheet-title">${esc(title(g))}</h2><p class="detail-location">${icon('pin')}${esc(g.area.split('·')[0])} · ${esc(cityName(g.city))}</p><div class="detail-features"><div>${icon(g.covered?'roof':'car')}<strong>${h(g.covered?'covered':'openAir')}</strong><span>${h('parkingType')}</span></div><div>${icon('car')}<strong>${h(g.vehicle_size==='compact'?'compact':g.vehicle_size==='suv'?'suv':'van')}</strong><span>${h('vehicleFit')}</span></div><div>${icon('height')}<strong><bdi>${new Intl.NumberFormat(locale(),{minimumFractionDigits:2}).format(g.height_cm/100)} ${h('metre')}</bdi></strong><span>${h('height')}</span></div></div><p class="detail-description">${esc(localizedField(g,'description'))}</p><div class="service-actions">${ratingBadge(g)}<button class="secondary" data-action="garage-reviews" data-id="${esc(g.id)}">${h('garageReviews')}</button></div>${!g.is_demo?`<div class="safety-actions"><button class="text-button" data-action="safety-report" data-target-type="garage" data-target-id="${esc(g.id)}">${h('safetyReportListing')}</button>${g.owner_id!==state.user?.id?peerSafetyActions(g.owner_id,false,state.demo):''}</div>`:''}<div class="host-line"><div class="host-avatar">${esc(g.owner_name?.[0]||'G')}</div><div><strong>${h('hostedBy',{name:g.owner_name})}</strong><span>${h(g.is_demo?'sampleHost':'pendingIdentity')}</span></div></div><div class="notice">${icon('lock')}<span>${h('entranceNotice')}</span></div><p class="small">${h('cancelPolicy')}</p></div><div class="detail-bottom"><div><strong><bdi>${esc(amount(rate(g)))}</bdi></strong><small>${h('perPeriod',{period:period()})}</small></div><button class="primary" data-action="book-form">${h(state.demo?'tryBooking':'chooseDates')}${icon('arrow')}</button></div>`);}
+function detail(g){modalGarage=g;showModal(`<img class="detail-image" src="${esc(safeImage(g.image))}" alt="${h(g.is_demo?'sampleIllustration':'photoOf',{name:title(g)})}"><div class="sheet-content"><div class="eyebrow">${h(g.is_demo?'detailEyebrowSample':'detailEyebrow')}</div><h2 id="sheet-title">${esc(title(g))}</h2><p class="detail-location">${icon('pin')}${esc(g.area.split('·')[0])} · ${esc(cityName(g.city))}</p><div class="detail-features"><div>${icon(g.covered?'roof':'car')}<strong>${h(g.covered?'covered':'openAir')}</strong><span>${h('parkingType')}</span></div><div>${icon('car')}<strong>${h(g.vehicle_size==='compact'?'compact':g.vehicle_size==='suv'?'suv':'van')}</strong><span>${h('vehicleFit')}</span></div><div>${icon('height')}<strong><bdi>${new Intl.NumberFormat(locale(),{minimumFractionDigits:2}).format(g.height_cm/100)} ${h('metre')}</bdi></strong><span>${h('height')}</span></div></div><p class="detail-description">${esc(localizedField(g,'description'))}</p><div class="service-actions">${ratingBadge(g)}<button class="secondary" data-action="garage-reviews" data-id="${esc(g.id)}">${h('garageReviews')}</button></div>${!g.is_demo?`<div class="safety-actions">${g.owner_id!==state.user?.id?`<button class="text-button" data-action="safety-report" data-target-type="garage" data-target-id="${esc(g.id)}" data-target-label="${esc(title(g))}">${h('safetyReportListing')}</button><div data-detail-peer-actions>${peerSafetyActions(g.owner_id,false,state.demo,{showBlock:!state.user,peerName:g.owner_name})}</div>`:''}</div>`:''}<div class="host-line"><div class="host-avatar">${esc(g.owner_name?.[0]||'G')}</div><div><strong>${h('hostedBy',{name:g.owner_name})}</strong><span>${h(g.is_demo?'sampleHost':'pendingIdentity')}</span></div></div><div class="notice">${icon('lock')}<span>${h('entranceNotice')}</span></div><p class="small">${h('cancelPolicy')}</p></div><div class="detail-bottom"><div><strong><bdi>${esc(amount(rate(g)))}</bdi></strong><small>${h('perPeriod',{period:period()})}</small></div><button class="primary" data-action="book-form">${h(state.demo?'tryBooking':'chooseDates')}${icon('arrow')}</button></div>`);
+ if(state.user&&!state.demo&&g.owner_id!==state.user.id){
+  const version=modalVersion,viewer=state.user.id,target=$('[data-detail-peer-actions]');
+  void repo.safetyProfile(g.owner_id).then(peer=>{
+   if(version===modalVersion&&viewer===state.user?.id&&target?.isConnected)target.innerHTML=peerSafetyActions(g.owner_id,peer.blocked_by_you,false,{peerName:g.owner_name});
+  }).catch(()=>{});
+ }
+}
 function bookingForm(){if(!state.user){auth(false,bookingForm);return;}bookingKey=requestKey();const selected=modalGarage.city===dateSearch?.city?dateSearch:null;const start=selected?.starts_at??Math.ceil((Date.now()+3600000)/3600000)*3600000;const units=selected?.units??(state.mode==='hourly'?3:1);showModal(`<div class="sheet-content"><div class="eyebrow">${h(state.demo?'bookingEyebrowSample':'bookingEyebrow')}</div><h2 id="sheet-title">${h('bookingTitle')}</h2><p class="detail-location">${esc(title(modalGarage))} · ${esc(cityName(modalGarage.city))}</p><form id="booking-form" class="form"><div class="two-fields"><label class="field">${h('startMorocco')}<input type="datetime-local" name="start" value="${moroccoInput(start)}" min="${moroccoInput(Date.now()+60000)}" required></label><label class="field">${h(state.mode==='hourly'?'hours':'months')}<input type="number" name="units" min="1" max="${state.mode==='hourly'?168:12}" step="1" value="${units}" required></label></div><div class="booking-options"><button type="button" class="secondary selected" data-action="booking-type" data-type="book">${h('bookListed')}</button><button type="button" class="secondary" data-action="booking-type" data-type="offer">${h('propose')}</button></div><input type="hidden" name="type" value="book"><label class="field" id="offer-field" hidden>${h('offerTotal')}<input name="offer" type="number" step="1" min="1" inputmode="numeric"><small>${h('fairOfferHint')}</small></label><div class="price-summary" id="price-summary"></div><div class="notice">${icon('shield')}<span>${h(state.demo?'practiceNotice':'arrivalNotice')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit" id="booking-submit">${h(state.demo?'confirmPreview':'confirmBooking')}${icon('arrow')}</button><p class="form-footer">${state.mode==='monthly'?h('calendarBilling')+' ':''}${h('timePolicy')}</p></form></div>`);updateQuote();}
 function quote(){const form=$('#booking-form');if(!form)return null;const data=new FormData(form),start=fromMoroccoInput(data.get('start')),units=Number(data.get('units'));if(!Number.isInteger(units)||units<1||units>(state.mode==='hourly'?168:12))throw new Error(localizeError('Choose a valid duration.',language()));return {starts_at:new Date(start).toISOString(),end:endAt(start,units,state.mode),units,mode:state.mode,action:data.get('type'),total_cents:Math.round(Number(data.get('offer'))*100),listed:rate(modalGarage)*units};}
 function updateQuote(){try{const q=quote();if(!q)return;$('#price-summary').innerHTML=`<div class="summary-line"><span>${esc(amount(rate(modalGarage)))} × ${esc(duration(q.units,state.mode))}</span><bdi>${esc(amount(q.listed))}</bdi></div><div class="summary-line"><span>${h('platformFee')}</span><bdi>${esc(amount(0))}</bdi></div><div class="summary-line muted"><span>${h('ends',{date:dateLabel(q.end)})}</span><span>${h('moroccoTime')}</span></div><div class="summary-line total"><span>${h(q.action==='offer'?'yourOffer':'totalArrival')}</span><bdi>${esc(amount(q.action==='offer'?q.total_cents:q.listed))}</bdi></div>`;const offer=$('[name="offer"]');offer.min=Math.ceil(q.listed*.6/100);offer.max=Math.floor(q.listed*2/100);}catch{$('#price-summary').textContent=t('validQuote');}}
 function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}</div>`:''}<div class="booking-actions">${!host&&r.status==='confirmed'&&r.ends_at>Date.now()?`<button class="primary route-button" data-action="arrival" data-id="${esc(r.id)}">${icon('directions')}${h('directions')}</button>`:''}${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}${['requested','countered','confirmed'].includes(r.status)?chatButton('reservation',r.id,host?'host':'renter'):''}${r.status==='confirmed'&&r.ends_at<=Date.now()?`<button class="secondary" data-action="stay-review" data-id="${esc(r.id)}">${h('reviewStay')}</button>`:''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
 function hostCard(g){return `<article class="booking-card"><img src="${esc(safeImage(g.image))}" alt="${h('photoPending')}"><div class="booking-info">${badge(g.status)}<h3 class="booking-title">${esc(title(g))}</h3><p class="booking-meta">${esc(g.area)} · ${esc(cityName(g.city))}<br><bdi>${esc(amount(g.hourly_cents))}</bdi> / ${h('hour')} · <bdi>${esc(amount(g.monthly_cents))}</bdi> / ${h('month')}</p><div class="booking-actions">${g.owner_id===state.user?.id&&g.status!=='archived'?`<button class="secondary" data-action="host-photo" data-id="${esc(g.id)}">${h(g.image&&g.image!=='/assets/garage-placeholder.svg'?'hostPhotoChange':'hostPhotoAdd')}</button>`:''}${state.demo&&g.status==='pending'?`<button class="secondary" data-action="approve-demo" data-id="${esc(g.id)}">${h('previewApproval')}</button>`:''}</div>${g.status==='pending'?`<p class="small">${h('listingPending')}</p>`:''}</div></article>`;}
-function auth(register=false,callback=null){if(callback)afterAuth=callback;showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p>${googleChoice()}<form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('agreeTerms')} <button type="button" data-action="privacy" class="support-link">${h('privacyTerms')}</button></p></form></div>`);}
+function auth(register=false,callback=null){afterAuth=callback;if(!callback)clearDeletionIntent();showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p>${googleChoice()}<form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('safetyAuthPrivacyIntro')} <a href="/privacy-policy?lang=${esc(language())}" target="_blank" rel="noopener" class="support-link">${h('safetyPrivacyPolicy')}</a></p></form></div>`);}
 let guidelinesVersion='2026-11-18', guidelinesAccepted=false;
 async function consentForContent(form) {
  if(guidelinesAccepted)return;
@@ -275,20 +292,46 @@ async function consentForContent(form) {
 }
 async function openSafety(kind,peer=null) {
  if(state.demo){toast(t('safetyDemoNotice'));return;}
- if(!state.user){auth(false,()=>openSafety(kind,peer));return;}
- if(kind==='blocks')showModal(blockedUsersSheet(await repo.blockedUsers()));
- else if(kind==='guidelines')showModal(guidelinesSheet(await repo.guidelines()));
- else if(kind==='delete')showModal(deletionSheet(await repo.deletionStatus()));
- else if(kind==='notices')showModal(noticesSheet(await repo.accountNotices()));
- else if(kind==='profile')showModal(userProfileSheet(await repo.safetyProfile(peer)));
+ if(!state.user){if(kind==='delete')rememberDeletionIntent();auth(false,()=>openSafety(kind,peer));return;}
+ const version=++modalVersion,viewer=state.user.id;
+ let content;
+ try{
+  if(kind==='blocks')content=blockedUsersSheet(await repo.blockedUsers());
+  else if(kind==='guidelines')content=guidelinesSheet(await repo.guidelines());
+  else if(kind==='delete')content=deletionSheet(await repo.deletionStatus(),googleSignIn?googleChoice():'');
+  else if(kind==='notices')content=noticesSheet(await repo.accountNotices());
+  else if(kind==='profile')content=userProfileSheet(await repo.safetyProfile(peer));
+ }catch(error){if(version!==modalVersion||viewer!==state.user?.id)return;throw error;}
+ if(version!==modalVersion||viewer!==state.user?.id)return;
+ if(kind==='delete')rememberDeletionIntent();
+ if(content)showModal(content);
 }
-async function openReport(type,id) {
+async function recoverDeletionAuth(form,message){
+ const version=++modalVersion,viewer=state.user?.id;
+ const current=()=>version===modalVersion&&form.isConnected;
+ try{
+  const initial=await repo.init();
+  if(!current())return;
+  state.user=initial.user;googleSignIn=initial.googleSignIn&&(!androidShell||initial.googleAndroid);updateChrome();
+  if(!state.user){guidelinesAccepted=false;rememberDeletionIntent();auth(false,()=>openSafety('delete'));toast(localizeError(message,language()));return;}
+  if(state.user.id!==viewer){guidelinesAccepted=false;closeModal();profile();toast(localizeError(message,language()));return;}
+  const status=await repo.deletionStatus();
+  if(!current())return;
+  rememberDeletionIntent();showModal(deletionSheet(status,googleSignIn?googleChoice():''));
+  if(!status.requires_recent_sign_in||status.recent_sign_in)toast(localizeError(message,language()));
+ }catch(error){
+  if(!current())return;
+  const field=$('.form-error',form);
+  if(field){field.textContent=localizeError(error.message,language());field.hidden=false;field.scrollIntoView({block:'nearest'});}else toast(localizeError(error.message,language()));
+ }
+}
+async function openReport(type,id,label='') {
  if(state.demo){toast(t('safetyDemoNotice'));return;}
- if(!state.user){auth(false,()=>openReport(type,id));return;}
- showModal(reportSheet({type,id}));
+ if(!state.user){auth(false,()=>openReport(type,id,label));return;}
+ showModal(reportSheet({type,id,label:label||(type==='garage'&&findGarage(id)?title(findGarage(id)):'')}));
 }
-function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:googleChoice(true)}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<a class="secondary" href="/privacy-policy">${icon('shield')}${h('privacyTerms')}</a>
- <a class="secondary" href="/community-guidelines">${h('safetyGuidelines')}</a>
+function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:googleChoice(true)}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<a class="secondary" href="/privacy-policy?lang=${esc(language())}">${icon('shield')}${h('safetyPrivacyPolicy')}</a>
+ ${!state.user||state.demo?`<a class="secondary" href="/community-guidelines">${h('safetyGuidelines')}</a>`:''}
  ${state.user&&!state.demo?`<button class="secondary" data-action="safety-blocks">${h('safetyBlockedUsers')}</button><button class="secondary" data-action="safety-notices">${h('safetyNotices')}</button><button class="secondary" data-action="safety-guidelines">${h('safetyGuidelines')}</button><button class="danger" data-action="safety-delete">${h('safetyDeleteAccount')}</button>`:''}<button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
 function freezeHostPhotoForm(form,busy){form.querySelectorAll('input,select,textarea').forEach(input=>{if(busy){input.dataset.photoWasDisabled=String(input.disabled);input.disabled=true;}else if(input.dataset.photoWasDisabled!==undefined){input.disabled=input.dataset.photoWasDisabled==='true';delete input.dataset.photoWasDisabled;}});}
 function hostPhotoFields(){return `<label class="field">${h('hostPhotoTitle')}<input type="file" name="garage_photo" data-host-photo-input accept="image/jpeg,image/png,image/webp" required><small>${h('hostPhotoHint')}</small></label><img class="host-photo-preview" data-host-photo-preview alt="${h('hostPhotoPreview')}" hidden><label class="host-photo-consent"><input type="checkbox" name="photo_consent" required> ${h('hostPhotoConsent')}</label>${guidelineAcceptance(guidelinesVersion)}${state.demo?`<p class="small">${h('hostPhotoDemo')}</p>`:''}`;}
@@ -503,7 +546,7 @@ document.addEventListener('click',async event=>{
  if(event.target.classList.contains('modal-overlay')){closeModal();return;}
  const button=event.target.closest('[data-action]');if(!button)return;const a=button.dataset.action,gid=button.dataset.id;
  try{
-  if(a==='safety-report')await openReport(button.dataset.targetType,button.dataset.targetId);
+  if(a==='safety-report')await openReport(button.dataset.targetType,button.dataset.targetId,button.dataset.targetLabel);
   else if(a==='safety-profile')await openSafety('profile',button.dataset.peer);
   else if(a==='safety-blocks')await openSafety('blocks');
   else if(a==='safety-guidelines')await openSafety('guidelines');
@@ -512,7 +555,8 @@ document.addEventListener('click',async event=>{
   else if(a==='safety-block'||a==='safety-unblock'){
    if(!state.user){auth();return;}if(state.demo){toast(t('safetyDemoNotice'));return;}
    button.disabled=true;
-   try{if(a==='safety-block')await repo.blockUser(button.dataset.peer);else await repo.unblockUser(button.dataset.peer);showModal(blockedUsersSheet(await repo.blockedUsers()));}finally{button.disabled=false;}
+   const version=++modalVersion,viewer=state.user.id;
+   try{if(a==='safety-block')await repo.blockUser(button.dataset.peer);else await repo.unblockUser(button.dataset.peer);const blocks=await repo.blockedUsers();if(version===modalVersion&&viewer===state.user?.id)showModal(blockedUsersSheet(blocks));}finally{button.disabled=false;}
   }
   else if(a==='navigate')await navigate(button.dataset.page);
   else if(a==='refresh'){if(state.page==='explore')await refreshDateSearch();await render();}
@@ -590,7 +634,7 @@ document.addEventListener('click',async event=>{
   }
   else if(a==='close-modal')closeModal();else if(a==='book-form')bookingForm();
   else if(a==='booking-type'){const type=button.dataset.type;$('[name="type"]').value=type;$('#offer-field').hidden=type!=='offer';$('.booking-options').querySelectorAll('button').forEach(b=>b.classList.toggle('selected',b.dataset.type===type));const offer=$('[name="offer"]');offer.required=type==='offer';if(type==='offer'&&!offer.value){try{offer.value=Math.round(quote().listed*.85/100);}catch{}}$('#booking-submit').innerHTML=`${h(type==='offer'?(state.demo?'sendPreviewOffer':'sendOffer'):(state.demo?'confirmPreview':'confirmBooking'))}${icon('arrow')}`;updateQuote();}
-  else if(a==='profile')profile();else if(a==='auth')auth();else if(a==='auth-toggle')auth(button.dataset.register==='true');else if(a==='privacy')privacy();
+  else if(a==='profile')profile();else if(a==='auth')auth();else if(a==='auth-toggle')auth(button.dataset.register==='true',afterAuth);else if(a==='privacy')privacy();
   else if(a==='about')showModal(`<div class="sheet-content"><div class="about-brand"><img src="./assets/logo.svg" alt="GarageShare"><strong id="sheet-title"><bdi>GarageShare</bdi></strong></div><p class="privacy-copy">${h('aboutCopy')}<br><br>${h('aboutVersion')}<br><br>${h('credits')}</p></div>`);
   else if(a==='host-photo'){button.disabled=true;try{await hostPhotoForm(gid);}finally{button.disabled=false;}}
   else if(a==='host-form')hostForm();else if(a==='host-tab'){state.hostTab=button.dataset.tab;await render();}
@@ -619,7 +663,7 @@ document.addEventListener('change',async event=>{
   }
  }
 
- if(['language','language-dialog'].includes(event.target.id)){if(setLanguage(event.target.value)){closeModal();await render();}}
+ if(['language','language-dialog'].includes(event.target.id)){if(setLanguage(event.target.value)){const current=new URL(location.href);current.searchParams.set('lang',language());history.replaceState(null,'',current.pathname+current.search+current.hash);closeModal();await render();}}
  if(event.target.id==='city'){state.city=event.target.value;state.query='';dateSearch=null;await render();}
  if(event.target.id==='calendar-garage'){hostCalendar.garageId=event.target.value;await render();}
  if(event.target.id==='sort'){state.sort=event.target.value;updateResults();}
@@ -628,7 +672,12 @@ document.addEventListener('change',async event=>{
 document.addEventListener('submit',async event=>{
  const form=event.target;event.preventDefault();const button=$('[type="submit"]',form);if(!button||button.disabled)return;button.disabled=true;const error=$('.form-error',form);if(error)error.hidden=true;
  try{const data=Object.fromEntries(new FormData(form));
-  if(form.id==='auth-form'){guidelinesAccepted=false;state.user=await repo.signIn(data,form.dataset.register==='true');closeModal();await render();const cb=afterAuth;afterAuth=null;if(cb)await cb();else toast(t('welcome'));}
+  if(form.id==='auth-form'){
+   const version=modalVersion,cb=afterAuth;guidelinesAccepted=false;
+   state.user=await repo.signIn(data,form.dataset.register==='true');updateChrome();
+   if(version!==modalVersion||!form.isConnected){await render();return;}
+   closeModal();await render();if(cb)await cb();else toast(t('welcome'));
+  }
   else if(form.id==='availability-form'){
    const city=state.city,mode=state.mode;
    const result=await readAvailability({city,starts_at:fromMoroccoInput(data.start),mode,units:Number(data.units)});
@@ -707,13 +756,16 @@ document.addEventListener('submit',async event=>{
   }
   else if(form.id==='counter-form'){await repo.reservationAction(form.dataset.id,'counter',{total_cents:Math.round(Number(data.total)*100)});closeModal();await render();toast(t('counterSent'));}
   else if(form.id==='cancel-form'){await repo.reservationAction(form.dataset.id,'cancel');closeModal();await render();toast(t('cancelledToast'));}
- }catch(e){if(error){error.textContent=e.status===413&&['host-form','host-photo-form'].includes(form.id)?t('hostPhotoUploadLimit'):localizeError(e.message,language());error.hidden=false;error.scrollIntoView({block:'nearest'});}else toast(localizeError(e.message,language()));button.disabled=false;}finally{if(button.isConnected)button.disabled=false;}
+ }catch(e){if(form.id==='account-deletion-form'&&!form.elements.password&&[401,403].includes(e.status)&&form.isConnected){await recoverDeletionAuth(form,e.message);}else if(error&&form.isConnected){error.textContent=e.status===413&&['host-form','host-photo-form'].includes(form.id)?t('hostPhotoUploadLimit'):localizeError(e.message,language());error.hidden=false;error.scrollIntoView({block:'nearest'});}else toast(localizeError(e.message,language()));button.disabled=false;}finally{if(button.isConnected)button.disabled=false;}
 });
 document.addEventListener('keydown',event=>{if(!$('.sheet'))return;if(event.key==='Escape'){closeModal();event.preventDefault();}if(event.key==='Tab'){const elements=[...$('.sheet').querySelectorAll('button:not(:disabled),a[href],input:not([type="hidden"]),select,textarea')].filter(el=>el.getClientRects().length),first=elements[0],last=elements.at(-1);if(event.shiftKey&&document.activeElement===first){last.focus();event.preventDefault();}else if(!event.shiftKey&&document.activeElement===last){first.focus();event.preventDefault();}}});
 window.garageshareBack=()=>{if($('.sheet')){closeModal();return true;}if(state.mapOpen){setMapOpen(false);return true;}if(state.page!=='explore'){navigate('explore');return true;}return false;};
 window.addEventListener('offline',()=>{$('#connection').hidden=false;});window.addEventListener('online',()=>{$('#connection').hidden=true;});
 async function start(){
+ const requestedLanguage=new URL(location.href).searchParams.get('lang');
+ if(['en','fr','ar'].includes(requestedLanguage))setLanguage(requestedLanguage);
  updateChrome();
+ const deletionRequested=hasDeletionIntent();
  const googleReturn=location.hash.match(/^#google=(failed|[a-f0-9]{64})$/)?.[1];
  if(googleReturn){
   const clean=new URL(location.href);
@@ -731,11 +783,11 @@ async function start(){
    catch(error){googleError=localizeError(error.message,language());}
   }
   state.garages=await repo.garages();await render();
-  if(new URL(location.href).searchParams.get('delete-account')==='1'){await openSafety('delete');}
+  if(deletionRequested){await openSafety('delete');}
   if(googleError){
-   if(state.user)profile();else auth();
+   if(deletionRequested)auth(false,()=>openSafety('delete'));else if(state.user)profile();else auth();
    $('.sheet-content').insertAdjacentHTML('afterbegin',`<p class="form-error" role="alert">${esc(googleError)}</p>`);
-  }else if(googleReturn&&googleSignIn)toast(t(initial.user?'googleConnected':'welcome'));
+  }else if(googleReturn&&googleSignIn&&!deletionRequested)toast(t(initial.user?'googleConnected':'welcome'));
  }catch(error){
   main.innerHTML=`<section class="page">${empty('info','connectTitle','connectCopy','retry','reload')}<p class="small">${esc(localizeError(error.message,language()))}</p></section>`;
  }

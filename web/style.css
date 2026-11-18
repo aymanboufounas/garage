@@ -184,6 +184,10 @@ html:not([lang=ar]) .hero h1{font-family:DM,Manrope,sans-serif;font-weight:750}
 .safety-block-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .safety-block-row .small { margin-bottom: 0; }
 .safety-content .notice { margin: 14px 0; }
+.sheet-content { overflow-wrap:anywhere; }
+.sheet-content>* { min-width:0; }
+.safety-delete-help { display:grid; gap:10px; margin:14px 0; }
+.safety-delete-help .secondary { text-align:center; text-decoration:none; }
 .safety-guidelines { padding-inline-start: 20px; line-height: 1.8; }
 .chat-message .safety-actions { margin: 4px 0 0; }
 .chat-message .safety-actions button { font-size: 10px; }

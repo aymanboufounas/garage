@@ -2,6 +2,8 @@
 const langCodes = ['en','fr','ar'];
 const words = {
  language:['Language','Langue','اللغة'],
+ skipContent:['Skip to content','Aller au contenu','انتقل إلى المحتوى'],
+ policyNavigation:['GarageShare policies','Documents GarageShare','سياسات GarageShare'],
  version:['Document version','Version du document','نسخة المستند'],
  review:['Operator review required before public release','Validation de l’opérateur requise avant publication','مراجعة المشغل مطلوبة قبل الإطلاق العام'],
  reviewNote:['The legal operator identity, contact details or retention schedule have not all been approved. This page does not invent them or certify legal/Google Play compliance.','L’identité légale de l’opérateur, ses coordonnées ou les durées de conservation ne sont pas toutes validées. Cette page ne les invente pas et ne certifie pas la conformité juridique ou Google Play.','لم تُعتمد جميع بيانات هوية المشغل القانونية أو الاتصال أو مدد الاحتفاظ. لا تختلق هذه الصفحة هذه البيانات ولا تصدّق على الامتثال القانوني أو لمتجر Google Play.'],
@@ -106,9 +108,9 @@ const policies = {
   'يمكنك طلب الحذف من إعدادات حساب GarageShare أو من هذا الموقع العام. لا تحتاج إلى إعادة تثبيت تطبيق Android لبدء الإجراء عبر الويب. يلزم تسجيل الدخول لإثبات ملكيتك للحساب.'
  ], sections:[
   {title:['How to request deletion','Comment demander la suppression','كيفية طلب الحذف'], paragraphs:[[
-   'Use the button below to sign in on the website and open account deletion. In the app, open Account settings → Delete account. Review the consequences, type DELETE, and confirm. Password accounts must supply their current password. A Google-only account needs a linked Google identity and a sign-in within the last five minutes; sign in again with Google if asked.',
-   'Utilisez le bouton ci-dessous pour vous connecter au site et ouvrir la suppression. Dans l’application, ouvrez Paramètres du compte → Supprimer le compte. Vérifiez les conséquences, saisissez DELETE puis confirmez. Un compte à mot de passe exige son mot de passe actuel. Un compte uniquement Google nécessite une identité Google associée et une connexion de moins de cinq minutes ; reconnectez-vous si demandé.',
-   'استخدم الزر أدناه للدخول إلى الموقع وفتح حذف الحساب. في التطبيق افتح إعدادات الحساب ← حذف الحساب. راجع الآثار واكتب DELETE ثم أكد. يتطلب حساب كلمة المرور كلمة مروره الحالية. ويتطلب حساب Google فقط هوية Google مرتبطة وتسجيل دخول خلال الدقائق الخمس الأخيرة؛ أعد الدخول عبر Google عند الطلب.'
+   'Use the sign-in button to open account deletion on the website. In the app, open Account settings → Delete account. Review the consequences, type DELETE, and confirm. Password accounts must supply their current password. A Google-only account needs a linked Google identity and a sign-in within the last five minutes; sign in again with Google if asked.',
+   'Utilisez le bouton de connexion pour ouvrir la suppression sur le site. Dans l’application, ouvrez Paramètres du compte → Supprimer le compte. Vérifiez les conséquences, saisissez DELETE puis confirmez. Un compte à mot de passe exige son mot de passe actuel. Un compte uniquement Google nécessite une identité Google associée et une connexion de moins de cinq minutes ; reconnectez-vous si demandé.',
+   'استخدم زر تسجيل الدخول لفتح حذف الحساب على الموقع. في التطبيق افتح إعدادات الحساب ← حذف الحساب. راجع الآثار واكتب DELETE ثم أكد. يتطلب حساب كلمة المرور كلمة مروره الحالية. ويتطلب حساب Google فقط هوية Google مرتبطة وتسجيل دخول خلال الدقائق الخمس الأخيرة؛ أعد الدخول عبر Google عند الطلب.'
   ]]},
   {title:['Before deletion can proceed','Avant de poursuivre','قبل تنفيذ الحذف'], paragraphs:[[
    'An ongoing or upcoming confirmed reservation as renter or host must be completed or resolved first. Deletion does not erase another person’s active booking or remove their necessary entrance information. A last administrator must first arrange another administrator. Unconfirmed offers and open price requests belonging to the deleting account are cancelled during deletion.',
@@ -196,14 +198,17 @@ function render() {
  document.title=message(policy.title)+' · GarageShare';
  const picker=document.querySelector('#policy-language');picker.value=code;picker.setAttribute('aria-label',message('language'));
  document.querySelector('#policy-language-label').textContent=message('language');
+ document.querySelector('.policy-skip').textContent=message('skipContent');
+ document.querySelector('.policy-header .brand').href='/?lang='+code;
  const main=document.querySelector('#policy-main');main.replaceChildren();
- main.append(element('h1',message(policy.title)),element('p',message('version')+': '+settings.version,'policy-meta'));
+ const version=element('p',message('version')+': ','policy-meta'),versionValue=element('bdi',settings.version);versionValue.dir='ltr';version.append(versionValue);
+ main.append(element('h1',message(policy.title)),version);
  if(settings.review_required||loadFailed) {
   const review=element('aside',undefined,'policy-review');review.setAttribute('role','status');
   review.append(element('strong',message('review')));paragraph(review,loadFailed?message('unavailable'):message('reviewNote'));main.append(review);
  }
  paragraph(main,policy.intro[index]);
- if(slug==='delete-account') { const actions=element('div',undefined,'policy-actions');link(actions,message('startDeletion'),'/?delete-account=1','primary');main.append(actions); }
+ if(slug==='delete-account') { const actions=element('div',undefined,'policy-actions');link(actions,message('startDeletion'),'/?delete-account=1&lang='+code,'primary');main.append(actions); }
  for(const section of policy.sections) {
   main.append(element('h2',section.title[index]));for(const texts of section.paragraphs)paragraph(main,texts[index]);
  }
@@ -212,13 +217,19 @@ function render() {
  paragraph(contact,settings.operator_name?message('operator')+': '+settings.operator_name:message('missingOperator'));
  if(settings.contact_email)link(contact,settings.contact_email,'mailto:'+settings.contact_email);else paragraph(contact,message('missingContact'));
  main.append(contact);
- const actions=element('div',undefined,'policy-actions');link(actions,message('back'),'/');main.append(actions);main.setAttribute('aria-busy','false');
- const footer=document.querySelector('.policy-footer nav');footer.replaceChildren();
+ const actions=element('div',undefined,'policy-actions');link(actions,message('back'),'/?lang='+code);main.append(actions);main.setAttribute('aria-busy','false');
+ const footer=document.querySelector('.policy-footer nav');footer.replaceChildren();footer.setAttribute('aria-label',message('policyNavigation'));
  for(const [key,path] of [['privacy','privacy-policy'],['guidelines','community-guidelines'],['deletion','delete-account']])link(footer,message(key),'/'+path+'?lang='+code);
 }
 function initialLanguage() { const query=new URL(location.href).searchParams.get('lang');if(langCodes.includes(query))return query;try{const saved=localStorage.getItem('garageshare-language');if(langCodes.includes(saved))return saved;}catch{}const browser=navigator.language?.split('-')[0];return langCodes.includes(browser)?browser:'en'; }
-index=langCodes.indexOf(initialLanguage());render();
-document.querySelector('#policy-language').addEventListener('change',event=>{const next=langCodes.indexOf(event.target.value);if(next<0)return;index=next;try{localStorage.setItem('garageshare-language',langCodes[index]);}catch{}render();});
+function rememberLanguage() { try{localStorage.setItem('garageshare-language',langCodes[index]);}catch{} }
+index=langCodes.indexOf(initialLanguage());rememberLanguage();render();
+document.querySelector('#policy-language').addEventListener('change',event=>{
+ const next=langCodes.indexOf(event.target.value);if(next<0)return;index=next;rememberLanguage();
+ const url=new URL(location.href);url.searchParams.set('lang',langCodes[index]);
+ try{history.replaceState(null,'',url);}catch{}
+ render();
+});
 try {
  const response=await fetch('/api/legal',{credentials:'omit',headers:{Accept:'application/json'}});
  if(!response.ok)throw new Error('Policy settings unavailable');
