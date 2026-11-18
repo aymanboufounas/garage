@@ -9,6 +9,7 @@ import { dealsRoute } from './deals.mjs';
 import { staffRole, supportRoute } from './support.mjs';
 import { requireModerator, moderationRoute } from './moderation.mjs';
 import { adminOperationsRoute } from './admin-operations.mjs';
+import { createWebAssets } from './web-assets.mjs';
 import { chatRoute } from './chat.mjs';
 import { browseGarages, calendarRoute } from './availability.mjs';
 import { garageReviews, reviewsRoute } from './reviews.mjs';
@@ -22,6 +23,7 @@ const equal=(a,b)=>{if(typeof a!=='string'||typeof b!=='string')return false;con
 export function makeApp(options={}) {
   const db=options.db||openDatabase(options.database||resolve('data/garageshare.sqlite'));
   const web=resolve(options.web||new URL('../web',import.meta.url).pathname);
+  const webAssets=createWebAssets(web);
   const production=Boolean(options.production), demo=Boolean(options.demo);
   const origin=new URL(options.origin||'http://localhost:3000').origin;
   const trustedProxy=options.trustedProxy||'';
@@ -266,14 +268,19 @@ export function makeApp(options={}) {
       }
       if(!['GET','HEAD'].includes(req.method)) throw new ApiError('Method not allowed.',405);
       let decoded;
-      try { decoded=decodeURIComponent(path); } catch { throw new ApiError('Invalid URL.',400); }
+      try { decoded=decodeURIComponent(webAssets.staticPath(path)); } catch(error) {
+        if(error instanceof ApiError) throw error;
+        throw new ApiError('Invalid URL.',400);
+      }
       const file=resolve(web,'.'+(decoded==='/'?'/index.html':decoded));
       if(!file.startsWith(web+sep)||decoded.split('/').some(p=>p.startsWith('.'))||!MIME[extname(file)]) throw new ApiError('Not found.',404);
       let info;
       try { info=await stat(file); } catch { throw new ApiError('Not found.',404); }
       if(!info.isFile()) throw new ApiError('Not found.',404);
       res.writeHead(200,{'Content-Type':MIME[extname(file)],'Cache-Control':extname(file)==='.html'?'no-store':['.js','.mjs','.css'].includes(extname(file))?'no-cache':'public, max-age=3600'});
-      res.end(req.method==='HEAD'?undefined:await readFile(file));
+      if(req.method==='HEAD') return res.end();
+      const contents=await readFile(file);
+      res.end(decoded==='/admin.html'?webAssets.rewriteAdminHtml(contents.toString('utf8')):contents);
     } catch(error) {
       if(res.headersSent) { res.end();return; }
       const overlap=String(error.message).includes('reservation_overlap');

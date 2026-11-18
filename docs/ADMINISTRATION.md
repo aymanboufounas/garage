@@ -135,3 +135,24 @@ BROWSER_EXECUTABLE. These checks use temporary websites and in-memory databases,
 not the deployed server. They cover navigation, overview, account paging and
 mutations, cancellation notes, simulated Nginx upload rejection, approval,
 escaping, mobile layout and Arabic RTL. Screenshots are in ignored test-results/.
+
+## Dashboard translations after an update
+
+The admin document now loads its entry module and CSS under a content-versioned
+URL. Relative imports, including translation catalogs, share that version. This
+prevents a fresh cached translation file from an older deployment being combined
+with the new admin code (for example, `Unknown translation key: adminNavigation`).
+The version is computed from web source files on server startup, without Git or
+a build step. Restart GarageShare after pulling changes and reload the admin page.
+No account roles or database contents are changed by this correction.
+
+`test/admin-assets.test.mjs` covers the namespace, imports, fonts and path checks.
+Optional browser regression:
+
+```bash
+NODE_PATH=../garage-qa-tools/node_modules BROWSER_EXECUTABLE=/usr/bin/chromium node scripts/check-admin-cache.mjs
+```
+
+This deliberately primes an old cached translation catalog, verifies that it
+lacks `adminNavigation`, and opens the updated dashboard without clearing that
+cache. It checks administrator navigation and French/Arabic translations.
