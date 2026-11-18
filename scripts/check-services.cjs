@@ -70,7 +70,7 @@ const path = require('node:path');
     }
     const nav = name => page.locator(`.bottom-nav [data-page="${name}"]`).click();
     const action = name => page.locator(`[data-action="${name}"]`);
-    const submit = form => page.locator(`${form} [type="submit"]`).click();
+    const submit = async form => { const consent=page.locator(`${form} [name="guidelines_accepted"]`);if(await consent.count())await consent.check();await page.locator(`${form} [type="submit"]`).click(); };
     async function openHostOffers(name) {
       await signIn(name);
       await page.goto(live);

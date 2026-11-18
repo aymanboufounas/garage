@@ -23,6 +23,8 @@ function client(){
 }
 try {
  const host=client();await host.call('/session');await host.call('/register',{name:'Fixture owner',email:'owner@example.com',password});
+ // The isolated fixture explicitly accepts the rules before creating any user content.
+ await host.call('/safety/guidelines/accept',{version:'2026-11-18',accepted:true});
  const fields={name:'Browser <img src=x> Garage',city:'Casablanca',area:'Centre',address:'Private entrance 42',latitude:33.57,longitude:-7.58,hourly_cents:1000,monthly_cents:95000,height_cm:230,vehicle_size:'suv',covered:true,description:'Garage listing for browser testing.'};
  // Existing listings can be pending without a photo. They must not be approvable.
  const missingPhoto=await host.call('/host/garages',{...fields,name:'Waiting for host photo'});

@@ -1,3 +1,4 @@
+import { requireInteractionAllowed } from './user-safety.mjs';
 import { ApiError, audit, checkedRequestKey, cities, garageAvailableSql, id, integer, interval, limit, noOverlap, transaction } from './core.mjs';
 
 const HOUR = 3600000;
@@ -58,6 +59,7 @@ function createRequest(db, userId, data) {
     for (const garageId of garageIds) {
       const garage = findGarage.get(garageId, data.city);
       if (!garage) throw new ApiError('This garage is unavailable.', 404);
+      requireInteractionAllowed(db,userId,garage.owner_id);
       if (garage.owner_id === userId) throw new ApiError('You cannot book your own garage.', 409);
       noOverlap(db, garageId, period.starts_at, period.ends_at);
     }
@@ -79,11 +81,12 @@ function respondToRequest(db, userId, quoteId, data) {
   return transaction(db, () => {
     const quote = db.prepare(`
       SELECT q.*, r.mode, r.units, r.proposed_cents, r.starts_at, r.ends_at,
-             r.status AS request_status, r.expires_at, g.status AS garage_status
+             r.status AS request_status, r.expires_at, r.guest_id, g.owner_id, g.status AS garage_status
       FROM rental_quotes q JOIN rental_requests r ON r.id=q.request_id
       JOIN garages g ON g.id=q.garage_id WHERE q.id=? AND g.owner_id=?
     `).get(quoteId, userId);
     if (!quote) throw new ApiError('Price quote not found.', 404);
+    if(data.action!=='decline') requireInteractionAllowed(db,userId,quote.guest_id);
     requireOpen({ status: quote.request_status, expires_at: quote.expires_at }, Date.now());
     if (data.action === 'decline') {
       if (quote.status !== 'declined') {
@@ -120,6 +123,8 @@ function selectQuote(db, userId, requestId, data) {
       return { reservation_id: request.reservation_id };
     }
     const now = Date.now();
+    const owner=db.prepare('SELECT owner_id FROM garages WHERE id=?').get(quote.garage_id);
+    requireInteractionAllowed(db,userId,owner.owner_id);
     requireOpen(request, now);
     if (quote.garage_status !== 'approved') throw new ApiError('This garage is unavailable.', 409);
     noOverlap(db, quote.garage_id, request.starts_at, request.ends_at);

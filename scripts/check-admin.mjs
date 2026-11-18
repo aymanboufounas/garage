@@ -19,7 +19,7 @@ try {
   if(r.headers.has('set-cookie'))this.cookie=r.headers.get('set-cookie').split(';')[0];
   const json=await r.json();if(json.csrf)this.csrf=json.csrf;assert.ok(r.ok,JSON.stringify(json));return json;
  }};}
- async function register(c,name,email){await c.call('/session');return (await c.call('/register',{name,email,password})).user;}
+ async function register(c,name,email){await c.call('/session');const user=(await c.call('/register',{name,email,password})).user;await c.call('/safety/guidelines/accept',{version:'2026-11-18',accepted:true});return user;}
  const owner=client(),admin=client(),guest=client();
  const ownerUser=await register(owner,'Sample host','host@example.com');
  const adminUser=await register(admin,'Sample administrator','admin@example.com');

@@ -1,3 +1,4 @@
+import { mountReports } from './admin-reports.js';
 import { mountOverview, mountAccounts, mountReservations } from './admin-management.js';
 import { mountModeration } from './moderation.js';
 import { api } from './data.js';
@@ -57,8 +58,8 @@ async function adminApi(...args) {
   }
 }
 
-const adminViews = ['overview', 'garages', 'accounts', 'reservations', 'support'];
-const viewIcon = {overview:'calendar', garages:'garage', accounts:'user', reservations:'calendar', support:'chat'};
+const adminViews = ['overview', 'garages', 'accounts', 'reservations', 'reports', 'support'];
+const viewIcon = {overview:'calendar', garages:'garage', accounts:'user', reservations:'calendar', reports:'shield', support:'chat'};
 function requestedView() {
   const value = location.hash.slice(1);
   return adminViews.includes(value) ? value : 'overview';
@@ -85,6 +86,7 @@ function renderDashboard() {
   if (state.view === 'overview') mountOverview(panel, adminApi, navigate);
   else if (state.view === 'garages') { panel.innerHTML = '<section id="moderation-panel" class="staff-panel"></section>'; mountModeration($('#moderation-panel'), adminApi); }
   else if (state.view === 'accounts') mountAccounts(panel, adminApi);
+  else if (state.view === 'reports') mountReports(panel, adminApi);
   else if (state.view === 'reservations') mountReservations(panel, adminApi);
   else {
     panel.innerHTML = `    <div id="staff-counts" class="staff-counts"></div>

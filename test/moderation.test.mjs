@@ -27,7 +27,7 @@ async function setup(t) {
       async register(name, role) {
         await this.call('/session');
         const r=await this.call('/register',{email:name+'@example.com',name,password,staff_role:'admin'});
-        assert.equal(r.status,201); this.user=r.json.user;
+        assert.equal(r.status,201); this.user=r.json.user;assert.equal((await this.call('/safety/guidelines/accept',{version:'2026-11-18',accepted:true})).status,200);
         assert.equal(this.user.staff_role,undefined);
         if(role)app.db.prepare('INSERT INTO staff_members(user_id,role) VALUES (?,?)').run(this.user.id,role);
         return this;

@@ -1,3 +1,4 @@
+import { reportSheet, blockedUsersSheet, peerSafetyActions, guidelinesSheet, guidelineAcceptance, deletionSheet, userProfileSheet, noticesSheet } from './safety-ui.js';
 import { prepareListingPhoto } from './photo-upload.js';
 import {icon,esc,money,cityCenters,safeImage as trustedImage,moroccoInput,fromMoroccoInput,endAt,dateLabel} from './icons.js';
 import {repo,requestKey} from './data.js';
@@ -258,16 +259,39 @@ function closeModal() {
  lastFocus=null;
  if(refreshInbox)void render();
 }
-function detail(g){modalGarage=g;showModal(`<img class="detail-image" src="${esc(safeImage(g.image))}" alt="${h(g.is_demo?'sampleIllustration':'photoOf',{name:title(g)})}"><div class="sheet-content"><div class="eyebrow">${h(g.is_demo?'detailEyebrowSample':'detailEyebrow')}</div><h2 id="sheet-title">${esc(title(g))}</h2><p class="detail-location">${icon('pin')}${esc(g.area.split('·')[0])} · ${esc(cityName(g.city))}</p><div class="detail-features"><div>${icon(g.covered?'roof':'car')}<strong>${h(g.covered?'covered':'openAir')}</strong><span>${h('parkingType')}</span></div><div>${icon('car')}<strong>${h(g.vehicle_size==='compact'?'compact':g.vehicle_size==='suv'?'suv':'van')}</strong><span>${h('vehicleFit')}</span></div><div>${icon('height')}<strong><bdi>${new Intl.NumberFormat(locale(),{minimumFractionDigits:2}).format(g.height_cm/100)} ${h('metre')}</bdi></strong><span>${h('height')}</span></div></div><p class="detail-description">${esc(localizedField(g,'description'))}</p><div class="service-actions">${ratingBadge(g)}<button class="secondary" data-action="garage-reviews" data-id="${esc(g.id)}">${h('garageReviews')}</button></div><div class="host-line"><div class="host-avatar">${esc(g.owner_name?.[0]||'G')}</div><div><strong>${h('hostedBy',{name:g.owner_name})}</strong><span>${h(g.is_demo?'sampleHost':'pendingIdentity')}</span></div></div><div class="notice">${icon('lock')}<span>${h('entranceNotice')}</span></div><p class="small">${h('cancelPolicy')}</p></div><div class="detail-bottom"><div><strong><bdi>${esc(amount(rate(g)))}</bdi></strong><small>${h('perPeriod',{period:period()})}</small></div><button class="primary" data-action="book-form">${h(state.demo?'tryBooking':'chooseDates')}${icon('arrow')}</button></div>`);}
+function detail(g){modalGarage=g;showModal(`<img class="detail-image" src="${esc(safeImage(g.image))}" alt="${h(g.is_demo?'sampleIllustration':'photoOf',{name:title(g)})}"><div class="sheet-content"><div class="eyebrow">${h(g.is_demo?'detailEyebrowSample':'detailEyebrow')}</div><h2 id="sheet-title">${esc(title(g))}</h2><p class="detail-location">${icon('pin')}${esc(g.area.split('·')[0])} · ${esc(cityName(g.city))}</p><div class="detail-features"><div>${icon(g.covered?'roof':'car')}<strong>${h(g.covered?'covered':'openAir')}</strong><span>${h('parkingType')}</span></div><div>${icon('car')}<strong>${h(g.vehicle_size==='compact'?'compact':g.vehicle_size==='suv'?'suv':'van')}</strong><span>${h('vehicleFit')}</span></div><div>${icon('height')}<strong><bdi>${new Intl.NumberFormat(locale(),{minimumFractionDigits:2}).format(g.height_cm/100)} ${h('metre')}</bdi></strong><span>${h('height')}</span></div></div><p class="detail-description">${esc(localizedField(g,'description'))}</p><div class="service-actions">${ratingBadge(g)}<button class="secondary" data-action="garage-reviews" data-id="${esc(g.id)}">${h('garageReviews')}</button></div>${!g.is_demo?`<div class="safety-actions"><button class="text-button" data-action="safety-report" data-target-type="garage" data-target-id="${esc(g.id)}">${h('safetyReportListing')}</button>${g.owner_id!==state.user?.id?peerSafetyActions(g.owner_id,false,state.demo):''}</div>`:''}<div class="host-line"><div class="host-avatar">${esc(g.owner_name?.[0]||'G')}</div><div><strong>${h('hostedBy',{name:g.owner_name})}</strong><span>${h(g.is_demo?'sampleHost':'pendingIdentity')}</span></div></div><div class="notice">${icon('lock')}<span>${h('entranceNotice')}</span></div><p class="small">${h('cancelPolicy')}</p></div><div class="detail-bottom"><div><strong><bdi>${esc(amount(rate(g)))}</bdi></strong><small>${h('perPeriod',{period:period()})}</small></div><button class="primary" data-action="book-form">${h(state.demo?'tryBooking':'chooseDates')}${icon('arrow')}</button></div>`);}
 function bookingForm(){if(!state.user){auth(false,bookingForm);return;}bookingKey=requestKey();const selected=modalGarage.city===dateSearch?.city?dateSearch:null;const start=selected?.starts_at??Math.ceil((Date.now()+3600000)/3600000)*3600000;const units=selected?.units??(state.mode==='hourly'?3:1);showModal(`<div class="sheet-content"><div class="eyebrow">${h(state.demo?'bookingEyebrowSample':'bookingEyebrow')}</div><h2 id="sheet-title">${h('bookingTitle')}</h2><p class="detail-location">${esc(title(modalGarage))} · ${esc(cityName(modalGarage.city))}</p><form id="booking-form" class="form"><div class="two-fields"><label class="field">${h('startMorocco')}<input type="datetime-local" name="start" value="${moroccoInput(start)}" min="${moroccoInput(Date.now()+60000)}" required></label><label class="field">${h(state.mode==='hourly'?'hours':'months')}<input type="number" name="units" min="1" max="${state.mode==='hourly'?168:12}" step="1" value="${units}" required></label></div><div class="booking-options"><button type="button" class="secondary selected" data-action="booking-type" data-type="book">${h('bookListed')}</button><button type="button" class="secondary" data-action="booking-type" data-type="offer">${h('propose')}</button></div><input type="hidden" name="type" value="book"><label class="field" id="offer-field" hidden>${h('offerTotal')}<input name="offer" type="number" step="1" min="1" inputmode="numeric"><small>${h('fairOfferHint')}</small></label><div class="price-summary" id="price-summary"></div><div class="notice">${icon('shield')}<span>${h(state.demo?'practiceNotice':'arrivalNotice')}</span></div><div class="form-error" hidden></div><button class="primary wide" type="submit" id="booking-submit">${h(state.demo?'confirmPreview':'confirmBooking')}${icon('arrow')}</button><p class="form-footer">${state.mode==='monthly'?h('calendarBilling')+' ':''}${h('timePolicy')}</p></form></div>`);updateQuote();}
 function quote(){const form=$('#booking-form');if(!form)return null;const data=new FormData(form),start=fromMoroccoInput(data.get('start')),units=Number(data.get('units'));if(!Number.isInteger(units)||units<1||units>(state.mode==='hourly'?168:12))throw new Error(localizeError('Choose a valid duration.',language()));return {starts_at:new Date(start).toISOString(),end:endAt(start,units,state.mode),units,mode:state.mode,action:data.get('type'),total_cents:Math.round(Number(data.get('offer'))*100),listed:rate(modalGarage)*units};}
 function updateQuote(){try{const q=quote();if(!q)return;$('#price-summary').innerHTML=`<div class="summary-line"><span>${esc(amount(rate(modalGarage)))} × ${esc(duration(q.units,state.mode))}</span><bdi>${esc(amount(q.listed))}</bdi></div><div class="summary-line"><span>${h('platformFee')}</span><bdi>${esc(amount(0))}</bdi></div><div class="summary-line muted"><span>${h('ends',{date:dateLabel(q.end)})}</span><span>${h('moroccoTime')}</span></div><div class="summary-line total"><span>${h(q.action==='offer'?'yourOffer':'totalArrival')}</span><bdi>${esc(amount(q.action==='offer'?q.total_cents:q.listed))}</bdi></div>`;const offer=$('[name="offer"]');offer.min=Math.ceil(q.listed*.6/100);offer.max=Math.floor(q.listed*2/100);}catch{$('#price-summary').textContent=t('validQuote');}}
 function reservationCard(r,host){const g=state.garages.find(g=>g.id===r.garage_id),name=g?title(g):r.name,active=['requested','countered','confirmed'].includes(r.status)&&r.starts_at>Date.now();return `<article class="booking-card" id="reservation-${esc(r.id)}"><img src="${esc(safeImage(r.image))}" alt="${esc(name)}"><div class="booking-info">${badge(r.status)}<h3 class="booking-title">${esc(name)}</h3><p class="booking-meta">${esc(cityName(r.city))} · ${esc(duration(r.units,r.mode))}${host?` · ${esc(localizedField(r,'guest_name'))}`:''}<br>${esc(dateLabel(r.starts_at))} ←→ ${esc(dateLabel(r.ends_at))}<br>${h('moroccoTime')}${state.demo?' · '+h('previewOnly'):''}</p><div class="booking-amount"><bdi>${esc(amount(r.total_cents))}</bdi> <span class="small">${h(r.status==='confirmed'?'onArrival':'total')}</span></div>${!host&&r.address&&r.status==='confirmed'?`<div class="private-address">${icon('lock')}${h('yourEntrance',{address:r.address})}</div>`:''}<div class="booking-actions">${!host&&r.status==='confirmed'&&r.ends_at>Date.now()?`<button class="primary route-button" data-action="arrival" data-id="${esc(r.id)}">${icon('directions')}${h('directions')}</button>`:''}${host&&r.status==='requested'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptOffer')}</button><button class="secondary" data-action="counter-form" data-id="${esc(r.id)}">${h('counterPrice')}</button>`:''}${!host&&r.status==='countered'?`<button class="primary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="accept">${h('acceptAmount',{amount:amount(r.total_cents)})}</button>`:''}${host&&['requested','countered'].includes(r.status)?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="decline">${h('decline')}</button>`:''}${state.demo&&!host&&r.status==='requested'?`<button class="secondary" data-action="reservation-action" data-id="${esc(r.id)}" data-step="reply">${h('previewReply')}</button>`:''}${active?`<button class="secondary" data-action="cancel-form" data-id="${esc(r.id)}">${h(state.demo?'cancelPreview':'cancel')}</button>`:''}${['requested','countered','confirmed'].includes(r.status)?chatButton('reservation',r.id,host?'host':'renter'):''}${r.status==='confirmed'&&r.ends_at<=Date.now()?`<button class="secondary" data-action="stay-review" data-id="${esc(r.id)}">${h('reviewStay')}</button>`:''}<button class="text-button" data-action="support-new" data-id="${esc(r.id)}">${h('supportBooking')}</button></div></div></article>`;}
 function hostCard(g){return `<article class="booking-card"><img src="${esc(safeImage(g.image))}" alt="${h('photoPending')}"><div class="booking-info">${badge(g.status)}<h3 class="booking-title">${esc(title(g))}</h3><p class="booking-meta">${esc(g.area)} · ${esc(cityName(g.city))}<br><bdi>${esc(amount(g.hourly_cents))}</bdi> / ${h('hour')} · <bdi>${esc(amount(g.monthly_cents))}</bdi> / ${h('month')}</p><div class="booking-actions">${g.owner_id===state.user?.id&&g.status!=='archived'?`<button class="secondary" data-action="host-photo" data-id="${esc(g.id)}">${h(g.image&&g.image!=='/assets/garage-placeholder.svg'?'hostPhotoChange':'hostPhotoAdd')}</button>`:''}${state.demo&&g.status==='pending'?`<button class="secondary" data-action="approve-demo" data-id="${esc(g.id)}">${h('previewApproval')}</button>`:''}</div>${g.status==='pending'?`<p class="small">${h('listingPending')}</p>`:''}</div></article>`;}
 function auth(register=false,callback=null){if(callback)afterAuth=callback;showModal(`<div class="sheet-content"><div class="eyebrow">${h('authEyebrow')}</div><h2 id="sheet-title">${h(register?'registerTitle':'loginTitle')}</h2><p class="small">${h('oneAccount')}</p>${googleChoice()}<form id="auth-form" class="form" data-register="${register}">${register?`<label class="field">${h('yourName')}<input name="name" autocomplete="name" minlength="2" maxlength="80" required></label>`:''}<label class="field">${h('email')}<input name="email" type="email" autocomplete="email" maxlength="190" required></label><label class="field">${h('password')}<input name="password" type="password" minlength="12" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required><small>${h('passwordHint')}</small></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h(register?'createMyAccount':'signIn')}${icon('arrow')}</button><button type="button" class="text-button" data-action="auth-toggle" data-register="${!register}">${h(register?'alreadyAccount':'newAccount')}</button><p class="form-footer">${h('agreeTerms')} <button type="button" data-action="privacy" class="support-link">${h('privacyTerms')}</button></p></form></div>`);}
-function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:googleChoice(true)}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<button class="secondary" data-action="privacy">${icon('shield')}${h('privacyTerms')}</button><button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
+let guidelinesVersion='2026-11-18', guidelinesAccepted=false;
+async function consentForContent(form) {
+ if(guidelinesAccepted)return;
+ const choice=form.elements.guidelines_accepted;
+ if(!choice?.checked)throw new Error(t('safetyGuidelinesAccept'));
+ await repo.acceptGuidelines(guidelinesVersion);guidelinesAccepted=true;
+}
+async function openSafety(kind,peer=null) {
+ if(state.demo){toast(t('safetyDemoNotice'));return;}
+ if(!state.user){auth(false,()=>openSafety(kind,peer));return;}
+ if(kind==='blocks')showModal(blockedUsersSheet(await repo.blockedUsers()));
+ else if(kind==='guidelines')showModal(guidelinesSheet(await repo.guidelines()));
+ else if(kind==='delete')showModal(deletionSheet(await repo.deletionStatus()));
+ else if(kind==='notices')showModal(noticesSheet(await repo.accountNotices()));
+ else if(kind==='profile')showModal(userProfileSheet(await repo.safetyProfile(peer)));
+}
+async function openReport(type,id) {
+ if(state.demo){toast(t('safetyDemoNotice'));return;}
+ if(!state.user){auth(false,()=>openReport(type,id));return;}
+ showModal(reportSheet({type,id}));
+}
+function profile(){showModal(`<div class="sheet-content"><div class="eyebrow">${h('profileEyebrow')}</div><h2 id="sheet-title">${state.user?h('hello',{name:state.demo?t('previewName'):state.user.name}):h('welcome')}</h2><p class="small">${state.demo?h('previewAccount'):state.user?esc(state.user.email):h('signInCopy')}</p>${state.demo?`<div class="notice">${icon('info')}<span>${h('previewAccountNotice')}</span></div>`:''}<div class="account-menu"><label class="field">${h('language')}<select id="language-dialog"><option value="fr" ${language()==='fr'?'selected':''}>Français</option><option value="ar" ${language()==='ar'?'selected':''}>العربية</option><option value="en" ${language()==='en'?'selected':''}>English</option></select></label>${!state.user?`<button class="primary wide" data-action="auth">${h('signInOrCreate')}</button>`:googleChoice(true)}<button class="secondary chat-button" data-action="navigate" data-page="messages">${icon('chat')}${h('chatInbox')}</button><button class="secondary" data-action="navigate" data-page="support">${icon('info')}${h('support')}</button>${state.user?.staff_role?`<a class="secondary" href="./admin.html">${h('staffDashboard')}</a>`:''}<a class="secondary" href="/privacy-policy">${icon('shield')}${h('privacyTerms')}</a>
+ <a class="secondary" href="/community-guidelines">${h('safetyGuidelines')}</a>
+ ${state.user&&!state.demo?`<button class="secondary" data-action="safety-blocks">${h('safetyBlockedUsers')}</button><button class="secondary" data-action="safety-notices">${h('safetyNotices')}</button><button class="secondary" data-action="safety-guidelines">${h('safetyGuidelines')}</button><button class="danger" data-action="safety-delete">${h('safetyDeleteAccount')}</button>`:''}<button class="secondary" data-action="about">${icon('info')}${h('about')}</button>${state.demo?`<button class="danger" data-action="reset-confirm">${h('resetData')}</button>`:state.user?`<button class="secondary" data-action="signout">${h('signOut')}</button>`:''}</div></div>`);}
 function freezeHostPhotoForm(form,busy){form.querySelectorAll('input,select,textarea').forEach(input=>{if(busy){input.dataset.photoWasDisabled=String(input.disabled);input.disabled=true;}else if(input.dataset.photoWasDisabled!==undefined){input.disabled=input.dataset.photoWasDisabled==='true';delete input.dataset.photoWasDisabled;}});}
-function hostPhotoFields(){return `<label class="field">${h('hostPhotoTitle')}<input type="file" name="garage_photo" data-host-photo-input accept="image/jpeg,image/png,image/webp" required><small>${h('hostPhotoHint')}</small></label><img class="host-photo-preview" data-host-photo-preview alt="${h('hostPhotoPreview')}" hidden><label class="host-photo-consent"><input type="checkbox" name="photo_consent" required> ${h('hostPhotoConsent')}</label>${state.demo?`<p class="small">${h('hostPhotoDemo')}</p>`:''}`;}
+function hostPhotoFields(){return `<label class="field">${h('hostPhotoTitle')}<input type="file" name="garage_photo" data-host-photo-input accept="image/jpeg,image/png,image/webp" required><small>${h('hostPhotoHint')}</small></label><img class="host-photo-preview" data-host-photo-preview alt="${h('hostPhotoPreview')}" hidden><label class="host-photo-consent"><input type="checkbox" name="photo_consent" required> ${h('hostPhotoConsent')}</label>${guidelineAcceptance(guidelinesVersion)}${state.demo?`<p class="small">${h('hostPhotoDemo')}</p>`:''}`;}
 async function hostPhotoForm(gid){
  const version=renderVersion,sheet=$('.sheet');
  const garages=await repo.listings();
@@ -313,7 +337,7 @@ async function openPriceRequest() {
 async function openStayReview(id) {
  const version=renderVersion,sheet=$('.sheet');
  const view=await repo.stayReview(id);
- if(version===renderVersion&&sheet===$('.sheet'))showModal(stayReviewSheet(view,state.demo));
+ if(version===renderVersion&&sheet===$('.sheet'))showModal(stayReviewSheet(view,state.demo,guidelinesVersion));
 }
 
 async function openGarageReviews(id) {
@@ -321,7 +345,7 @@ async function openGarageReviews(id) {
  if(!garage)return;
  const version=renderVersion,sheet=$('.sheet');
  const reviews=await repo.garageReviews(id);
- if(version===renderVersion&&sheet===$('.sheet'))showModal(garageReviewSheet(title(garage),reviews));
+ if(version===renderVersion&&sheet===$('.sheet'))showModal(garageReviewSheet(title(garage),reviews,state.demo));
 }
 
 async function openArrival(id,opener) {
@@ -398,17 +422,21 @@ function updateChat(view,result,{older=false,follow=false}={}) {
  if(activeChat!==view)return;
  const pane=view.pane,oldHeight=pane.scrollHeight,atBottom=atChatBottom(pane);
  const messages=new Map(view.messages.map(row=>[row.seq,row]));
+ let contentChanged=false;
+ for(const seq of result.removed_sequences||[]) { const old=messages.get(seq);if(old&&!old.removed){messages.set(seq,{...old,message:'',removed:true});contentChanged=true;} }
+ for(const row of result.messages) {const old=messages.get(row.seq);if(old&&JSON.stringify(old)!==JSON.stringify(row))contentChanged=true;}
  for(const row of result.messages)messages.set(row.seq,row);
  const seen=Math.max(view.seenThrough,result.seen_through||0);
- if(messages.size!==view.messages.length||seen!==view.seenThrough){
+ if(contentChanged||messages.size!==view.messages.length||seen!==view.seenThrough){
   view.messages=[...messages.values()].sort((a,b)=>a.seq-b.seq);
   view.seenThrough=seen;
-  pane.innerHTML=chatMessages(view.messages,seen,view.peer);
+  pane.innerHTML=chatMessages(view.messages,seen,view.peer,state.demo);
   if(older)pane.scrollTop+=pane.scrollHeight-oldHeight;
   else if(follow||atBottom)pane.scrollTop=pane.scrollHeight;
  }
  if(result.conversation){
   $('#chat-closed',view.sheet).hidden=result.conversation.writable;
+  $('#chat-closed',view.sheet).textContent=t(result.conversation.interaction_blocked?'safetyInteractionBlocked':'chatReadOnly');
   $('#chat-compose',view.sheet).hidden=!result.conversation.writable;
  }
  $('[data-action="chat-older"]',view.sheet).hidden=!view.hasOlder;
@@ -444,10 +472,10 @@ async function openChat(kind,id) {
  const version=renderVersion,previous=$('.sheet');
  const result=await repo.chat(kind,id);
  if(version!==renderVersion||previous!==$('.sheet'))return;
- showModal(chatSheet(result,state.demo));
+ showModal(chatSheet(result,state.demo,guidelinesVersion));
  const view={kind,id,sheet:$('.sheet'),pane:$('#chat-messages'),messages:result.messages,
   cursor:result.messages.at(-1)?.seq||0,hasOlder:result.has_older,peer:result.conversation.peer_name,
-  seenThrough:result.seen_through,readThrough:0,reading:false,loading:false,pending:null};
+  peerId:result.conversation.peer_id,seenThrough:result.seen_through,readThrough:0,reading:false,loading:false,pending:null};
  activeChat=view;
  view.pane.scrollTop=view.pane.scrollHeight;
  view.pane.addEventListener('scroll',()=>void markChatRead(view),{passive:true});
@@ -475,7 +503,18 @@ document.addEventListener('click',async event=>{
  if(event.target.classList.contains('modal-overlay')){closeModal();return;}
  const button=event.target.closest('[data-action]');if(!button)return;const a=button.dataset.action,gid=button.dataset.id;
  try{
-  if(a==='navigate')await navigate(button.dataset.page);
+  if(a==='safety-report')await openReport(button.dataset.targetType,button.dataset.targetId);
+  else if(a==='safety-profile')await openSafety('profile',button.dataset.peer);
+  else if(a==='safety-blocks')await openSafety('blocks');
+  else if(a==='safety-guidelines')await openSafety('guidelines');
+  else if(a==='safety-notices')await openSafety('notices');
+  else if(a==='safety-delete')await openSafety('delete');
+  else if(a==='safety-block'||a==='safety-unblock'){
+   if(!state.user){auth();return;}if(state.demo){toast(t('safetyDemoNotice'));return;}
+   button.disabled=true;
+   try{if(a==='safety-block')await repo.blockUser(button.dataset.peer);else await repo.unblockUser(button.dataset.peer);showModal(blockedUsersSheet(await repo.blockedUsers()));}finally{button.disabled=false;}
+  }
+  else if(a==='navigate')await navigate(button.dataset.page);
   else if(a==='refresh'){if(state.page==='explore')await refreshDateSearch();await render();}
   else if(a==='reload')location.reload();
   else if(a==='mode'){if(state.mode!==button.dataset.mode)dateSearch=null;state.mode=button.dataset.mode;await render();}
@@ -502,7 +541,7 @@ document.addEventListener('click',async event=>{
   else if(a==='review-sample-reply'){
    button.disabled=true;
    const view=await repo.sampleReviewReply(gid);
-   if(view&&button.isConnected)showModal(stayReviewSheet(view,state.demo));
+   if(view&&button.isConnected)showModal(stayReviewSheet(view,state.demo,guidelinesVersion));
   }
   else if(a==='review-sample-stay'){
    button.disabled=true;
@@ -560,7 +599,7 @@ document.addEventListener('click',async event=>{
   else if(a==='reservation-action'){button.disabled=true;await repo.reservationAction(gid,button.dataset.step);toast(t(button.dataset.step==='accept'?'acceptedToast':button.dataset.step==='reply'?'replyToast':'updatedToast'));await render();}
   else if(a==='counter-form')showModal(`<div class="sheet-content"><h2 id="sheet-title">${h('counterTitle')}</h2><p class="small">${h('counterCopy')}</p><form class="form" id="counter-form" data-id="${esc(gid)}"><label class="field">${h('newTotal')}<input type="number" name="total" min="1" step="1" required></label><div class="form-error" hidden></div><button class="primary wide" type="submit">${h('sendCounter')}</button></form></div>`);
   else if(a==='cancel-form')showModal(`<div class="sheet-content"><h2 id="sheet-title">${h('cancelTitle')}</h2><p class="page-intro">${h('cancelCopy')}</p><form id="cancel-form" data-id="${esc(gid)}"><div class="form-error" hidden></div><button class="danger wide" type="submit">${h('yesCancel')}</button><button type="button" class="text-button wide" data-action="close-modal">${h('keepReservation')}</button></form></div>`);
-  else if(a==='signout'){await repo.signOut();state.user=null;closeModal();await repo.init();await render();toast(t('signedOut'));}
+  else if(a==='signout'){await repo.signOut();state.user=null;guidelinesAccepted=false;closeModal();await repo.init();await render();toast(t('signedOut'));}
   else if(a==='reset-confirm')showModal(`<div class="sheet-content"><h2 id="sheet-title">${h('resetTitle')}</h2><p class="page-intro">${h('resetCopy')}</p><button class="danger wide" data-action="reset-demo">${h('resetData')}</button><button class="text-button wide" data-action="close-modal">${h('keepData')}</button></div>`);
   else if(a==='reset-demo'){repo.resetDemo();dateSearch=null;state.saved.clear();try{localStorage.removeItem('garageshare-saved');}catch{}state.garages=await repo.garages();await navigate('explore');toast(t('resetToast'));}
   else if(a==='locate')locateNearby(button);
@@ -589,7 +628,7 @@ document.addEventListener('change',async event=>{
 document.addEventListener('submit',async event=>{
  const form=event.target;event.preventDefault();const button=$('[type="submit"]',form);if(!button||button.disabled)return;button.disabled=true;const error=$('.form-error',form);if(error)error.hidden=true;
  try{const data=Object.fromEntries(new FormData(form));
-  if(form.id==='auth-form'){state.user=await repo.signIn(data,form.dataset.register==='true');closeModal();await render();const cb=afterAuth;afterAuth=null;if(cb)await cb();else toast(t('welcome'));}
+  if(form.id==='auth-form'){guidelinesAccepted=false;state.user=await repo.signIn(data,form.dataset.register==='true');closeModal();await render();const cb=afterAuth;afterAuth=null;if(cb)await cb();else toast(t('welcome'));}
   else if(form.id==='availability-form'){
    const city=state.city,mode=state.mode;
    const result=await readAvailability({city,starts_at:fromMoroccoInput(data.start),mode,units:Number(data.units)});
@@ -605,11 +644,15 @@ document.addEventListener('submit',async event=>{
     closeModal();await render();toast(t('calendarSaved'));
    }
   }
+  else if(form.id==='safety-report-form'){await repo.reportContent({target_type:form.dataset.targetType,target_id:form.dataset.targetId,reason:data.reason,explanation:data.explanation||'',request_key:form.dataset.requestKey||(form.dataset.requestKey=requestKey())});closeModal();toast(t('safetyReportSent'));}
+  else if(form.id==='guidelines-form'){await repo.acceptGuidelines(form.dataset.version);guidelinesAccepted=true;closeModal();toast(t('safetyGuidelinesAccepted'));}
+  else if(form.id==='account-deletion-form'){await repo.deleteAccount({confirmation:data.confirmation,...(data.password?{password:data.password}:{})});state.user=null;guidelinesAccepted=false;closeModal();await repo.init();await navigate('explore');toast(t('safetyDeleteDone'));}
   else if(form.id==='stay-review-form'){
+   await consentForContent(form);
    const view=await repo.submitReview(form.dataset.id,{rating:Number(data.rating),comment:data.comment});
-   if(form.isConnected)showModal(stayReviewSheet(view,state.demo));
+   if(form.isConnected)showModal(stayReviewSheet(view,state.demo,guidelinesVersion));
   }
-  else if(form.id==='chat-form')await sendChatMessage(form,data.message,button);
+  else if(form.id==='chat-form'){await consentForContent(form);await sendChatMessage(form,data.message,button);}
   else if(form.id==='price-request-form'){
    await repo.requestPrices({city:data.city,mode:data.mode,starts_at:new Date(fromMoroccoInput(data.start)).toISOString(),units:Number(data.units),
     proposed_cents:Math.round(Number(data.total)*100),garage_ids:new FormData(form).getAll('garage_ids'),request_key:data.request_key});
@@ -635,6 +678,7 @@ document.addEventListener('submit',async event=>{
   }
   else if(form.id==='booking-form'){const q=quote();if(Date.parse(q.starts_at)<Date.now()+60000)throw new Error(localizeError('Choose a start at least one minute ahead.',language()));const result=await repo.reserve(modalGarage,{starts_at:q.starts_at,units:q.units,mode:q.mode,action:q.action,total_cents:q.total_cents,request_key:bookingKey});showModal(`<div class="sheet-content success"><div class="success-mark">${icon('check')}</div><div class="eyebrow" style="justify-content:center">${h(state.demo?'previewDone':'tripsEyebrow')}</div><h2 id="sheet-title">${h(result.status==='requested'?'offerSentTitle':'bookingSuccessTitle')}</h2><p>${result.status==='requested'?h('offerSentCopy'):h(state.demo?'sampleConfirmedCopy':'confirmedCopy',{amount:amount(result.total_cents)})}${state.demo?'<br><br>'+h('noRealBooking'):''}</p><button class="primary wide" data-action="navigate" data-page="trips">${h('seeTrips')}${icon('arrow')}</button></div>`);}
   else if(form.id==='host-form'){
+   await consentForContent(form);
    if(!data.latitude||!data.longitude)throw new Error(t('pinRequired'));
    const input=$('[name="garage_photo"]',form),file=input.files[0];
    if(!form.reportValidity())return;
@@ -648,6 +692,7 @@ document.addEventListener('submit',async event=>{
    }finally{if(form.isConnected)freezeHostPhotoForm(form,false);}
   }
   else if(form.id==='host-photo-form'){
+   await consentForContent(form);
    const garage=editingHostPhoto;
    if(!garage||garage.id!==form.dataset.id||!form.reportValidity())return;
    const input=$('[name="garage_photo"]',form),file=input.files[0],status=$('[data-photo-upload-status]',form);
@@ -677,7 +722,7 @@ async function start(){
  }
  try{
   const initial=await repo.init();
-  state.demo=initial.demo;state.user=initial.user;
+  state.demo=initial.demo;state.user=initial.user;guidelinesVersion=initial.guidelinesVersion||guidelinesVersion;
   googleSignIn=initial.googleSignIn&&(!androidShell||initial.googleAndroid);
   let googleError='';
   if(googleReturn&&googleSignIn){
@@ -686,6 +731,7 @@ async function start(){
    catch(error){googleError=localizeError(error.message,language());}
   }
   state.garages=await repo.garages();await render();
+  if(new URL(location.href).searchParams.get('delete-account')==='1'){await openSafety('delete');}
   if(googleError){
    if(state.user)profile();else auth();
    $('.sheet-content').insertAdjacentHTML('afterbegin',`<p class="form-error" role="alert">${esc(googleError)}</p>`);

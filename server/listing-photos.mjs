@@ -80,6 +80,7 @@ export function submitHostPhoto(db, web, user, garageId, data) {
   if (data.expected_image !== row.image || data.expected_status !== row.status) throw new ApiError('Listing changed. Refresh and try again.', 409);
   const bytes = decodeListingPhoto(data.photo_base64);
   return withListingPhoto(web, bytes, image => transaction(db, () => {
+    db.prepare('INSERT OR IGNORE INTO listing_photo_owners(image,user_id,created_at) VALUES(?,?,?)').run(image,user.id,Date.now());
     db.prepare("UPDATE garages SET image=?,status='pending' WHERE id=?").run(image, garageId);
     audit(db, user.id, 'host_listing_photo_submitted', garageId);
     return { id: garageId, status: 'pending', image };

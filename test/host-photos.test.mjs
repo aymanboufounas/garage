@@ -17,7 +17,7 @@ async function setup(t) {
   function client(){return {cookie:'',csrf:'',user:null,async call(path,data,extra={}){
     const r=await fetch(base+'/api'+path,{method:data===undefined?'GET':'POST',headers:{Cookie:this.cookie,Origin:origin,'Content-Type':'application/json','X-CSRF-Token':this.csrf,...extra},body:data===undefined?undefined:JSON.stringify(data)});
     if(r.headers.has('set-cookie'))this.cookie=r.headers.get('set-cookie').split(';')[0];const json=await r.json();if(json.csrf)this.csrf=json.csrf;return {status:r.status,json};
-  },async register(name,role){await this.call('/session');const r=await this.call('/register',{name,email:name+'@example.com',password});assert.equal(r.status,201);this.user=r.json.user;if(role)app.db.prepare('INSERT INTO staff_members VALUES (?,?)').run(this.user.id,role);return this;}};}
+  },async register(name,role){await this.call('/session');const r=await this.call('/register',{name,email:name+'@example.com',password});assert.equal(r.status,201);this.user=r.json.user;assert.equal((await this.call('/safety/guidelines/accept',{version:'2026-11-18',accepted:true})).status,200);if(role)app.db.prepare('INSERT INTO staff_members VALUES (?,?)').run(this.user.id,role);return this;}};}
   const host=await client().register('Host'),other=await client().register('Other'),admin=await client().register('Admin','admin'),anonymous=client();await anonymous.call('/session');
   async function create(photo=image){const data={...details};if(photo!==null)data.photo_base64=photo;const r=await host.call('/host/garages',data);assert.equal(r.status,201);return r.json;}
   function photoData(row,photo=secondImage){return {photo_base64:photo,expected_status:row.status,expected_image:row.image};}

@@ -1,8 +1,12 @@
+import { GUIDELINES_VERSION } from './user-safety.mjs';
+import { isContentRemoved } from './ugc-moderation.mjs';
+import { assertAccountActive } from './account-lifecycle.mjs';
 import { ApiError, audit, transaction } from './core.mjs';
 import { staffRole } from './support.mjs';
 import { decodeListingPhoto, requireStoredListingPhoto, withListingPhoto } from './listing-photos.mjs';
 
 export function requireModerator(db, user) {
+  assertAccountActive(db,user.id);
   if (staffRole(db, user.id) !== 'admin') throw new ApiError('Administrator access is required.', 403);
 }
 
@@ -26,6 +30,8 @@ export function moderationRoute(db, web, user, method, path, params, data) {
   if (action === 'approve' && row.status !== 'pending' || action === 'reject' && row.status !== 'pending' || action === 'archive' && row.status !== 'approved') {
     throw new ApiError('This listing cannot be changed in its current status.', 409);
   }
+  if(action==='approve'&&isContentRemoved(db,'garage',gid)) throw new ApiError('Restore the removed listing through its moderation report before approval.',409);
+  if(action==='approve'&&!db.prepare('SELECT 1 FROM user_guideline_acceptances WHERE user_id=? AND version=?').get(row.owner_id,GUIDELINES_VERSION)) throw new ApiError('The host must accept the Community Guidelines before publication.',409);
   if (action === 'approve' && data.confirmed !== true) throw new ApiError('Confirm the listing and photo review.');
   let bytes = null;
   if (action === 'approve') {
@@ -42,6 +48,7 @@ export function moderationRoute(db, web, user, method, path, params, data) {
     }
     const status = { approve: 'approved', reject: 'rejected', archive: 'archived' }[action];
     const image = uploadedImage || row.image;
+    if(uploadedImage)db.prepare('INSERT OR IGNORE INTO listing_photo_owners(image,user_id,created_at) VALUES(?,?,?)').run(image,row.owner_id,Date.now());
     db.prepare('UPDATE garages SET status=?,image=? WHERE id=?').run(status, image, gid);
     audit(db, user.id, 'moderator_' + (action === 'approve' ? 'approved' : action), gid);
     return { id: gid, status, image };

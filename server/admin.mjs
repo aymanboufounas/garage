@@ -1,7 +1,10 @@
+import { decodeListingPhoto, withListingPhoto } from './listing-photos.mjs';
+import { isContentRemoved } from './ugc-moderation.mjs';
+import { requireGuidelines } from './user-safety.mjs';
 // This command runs only on the server. There is deliberately no public admin sign-up.
-import {resolve,basename} from 'node:path';
-import {readFileSync,copyFileSync,mkdirSync} from 'node:fs';
-import {openDatabase,transaction,audit,id} from './core.mjs';
+import {resolve} from 'node:path';
+import {readFileSync} from 'node:fs';
+import {openDatabase,transaction,audit} from './core.mjs';
 const db=openDatabase(resolve(process.env.DATA_DIR||'data','garageshare.sqlite'));
 const [command,gid,photo]=process.argv.slice(2);
 try {
@@ -29,12 +32,15 @@ try {
   if(!/^[a-f0-9]{32}$/.test(gid||''))throw new Error('Supply a listing ID from the pending command.');
   const row=db.prepare("SELECT * FROM garages WHERE id=? AND status='pending'").get(gid);
   if(!row)throw new Error('Pending listing not found.');
+  requireGuidelines(db,row.owner_id);
   if(!photo)throw new Error('Supply an accurate, authorized WebP photo after checking ownership and the listing details.');
-  const bytes=readFileSync(photo);
-  if(bytes.length>5*1024*1024||bytes.subarray(0,4).toString()!=='RIFF'||bytes.subarray(8,12).toString()!=='WEBP')throw new Error('Use a valid WebP photo under 5 MB. Re-encode it to remove metadata.');
-  const directory=resolve('web/assets/host-photos');mkdirSync(directory,{recursive:true});
-  const name=id()+'.webp';copyFileSync(photo,resolve(directory,name));
-  transaction(db,()=>{db.prepare("UPDATE garages SET status='approved',image=? WHERE id=?").run('/assets/host-photos/'+name,gid);audit(db,null,'moderator_approved',gid);});
+  const bytes=decodeListingPhoto(readFileSync(photo).toString('base64'));
+  withListingPhoto(resolve('web'),bytes,image=>transaction(db,()=>{
+   const current=db.prepare('SELECT status FROM garages WHERE id=?').get(gid);
+   if(current?.status!=='pending'||isContentRemoved(db,'garage',gid))throw new Error('Listing changed or was removed. Review it before approval.');
+   db.prepare('INSERT OR IGNORE INTO listing_photo_owners(image,user_id,created_at) VALUES(?,?,?)').run(image,row.owner_id,Date.now());
+   db.prepare("UPDATE garages SET status='approved',image=? WHERE id=?").run(image,gid);audit(db,null,'moderator_approved',gid);
+  }));
   console.log('Listing approved:',gid);
  }else if(['reject','archive'].includes(command)){
   const row=db.prepare('SELECT id FROM garages WHERE id=?').get(gid);if(!row)throw new Error('Listing not found.');

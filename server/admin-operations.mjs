@@ -1,3 +1,4 @@
+import { accountState } from './account-lifecycle.mjs';
 import { ApiError, audit, cities, id, integer, passwordHash, text, transaction } from './core.mjs';
 import { requireModerator } from './moderation.mjs';
 
@@ -33,6 +34,7 @@ function userView(db, userId) {
 function requireTarget(db, userId) {
   const row = userView(db, userId);
   if (!row) throw new ApiError('Account not found.', 404);
+  if(accountState(db,userId)!=='active')throw new ApiError('This account is unavailable for identity changes.',409);
   return row;
 }
 function duplicateEmail(error) {
@@ -112,7 +114,9 @@ function removeUser(db, actor, userId, data) {
       ['garages', 'owner_id'], ['reservations', 'guest_id'], ['rental_requests', 'guest_id'],
       ['support_tickets', 'customer_id'], ['support_tickets', 'assignee_id'], ['support_messages', 'author_id'],
       ['chat_threads', 'guest_id'], ['chat_threads', 'host_id'], ['chat_messages', 'sender_id'], ['stay_reviews', 'author_id'],
-      ['admin_reservation_decisions', 'actor_id']
+      ['admin_reservation_decisions', 'actor_id'], ['listing_photo_owners','user_id'],
+      ['ugc_reports','reporter_id'], ['ugc_reports','subject_user_id'], ['ugc_reports','reviewed_by'],
+      ['content_moderation','removed_by'], ['ugc_notices','user_id']
     ];
     if (relationships.some(([table, field]) => db.prepare(`SELECT 1 FROM ${table} WHERE ${field}=? LIMIT 1`).get(userId))) {
       throw new ApiError('This account has rental or support history and cannot be removed here.', 409);

@@ -1,3 +1,4 @@
+import { migrateDatabase } from './migrations.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -25,6 +26,7 @@ export function openDatabase(filename) {
   if (filename!==':memory:') { mkdirSync(dirname(filename),{recursive:true,mode:0o700}); }
   const db=new DatabaseSync(filename);
   db.exec(readFileSync(new URL('./schema.sql',import.meta.url),'utf8'));
+  migrateDatabase(db);
   return db;
 }
 export function transaction(db, action) {
@@ -96,7 +98,7 @@ export const garageAvailableSql = `NOT EXISTS (
 export function publicGarage(row) {
   // About 400 m precision; private entrance and exact pin are disclosed after confirmation.
   return {
-    id:row.id, name:row.name, city:row.city, area:row.area,
+    id:row.id, owner_id:row.owner_id, name:row.name, city:row.city, area:row.area,
     latitude:Math.round(row.latitude/0.004)*0.004, longitude:Math.round(row.longitude/0.004)*0.004,
     hourly_cents:row.hourly_cents, monthly_cents:row.monthly_cents, height_cm:row.height_cm,
     vehicle_size:row.vehicle_size, covered:Boolean(row.covered), description:row.description,

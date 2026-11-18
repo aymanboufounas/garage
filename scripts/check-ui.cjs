@@ -86,6 +86,7 @@ const execFile=require('node:util').promisify(require('node:child_process').exec
   check('Host entrance is selected on the map',Boolean(await form.locator('[name="latitude"]').inputValue()));
   await form.locator('[name="garage_photo"]').setInputFiles(path.resolve(__dirname,'../web/assets/garages/garage-01.webp'));
   await form.locator('[name="photo_consent"]').check();
+  await form.locator('[name="guidelines_accepted"]').check();
   await form.locator('[type="submit"]').click();await page.getByText('In review',{exact:true}).waitFor();
   check('Host listing stays pending review',await page.locator('.status.pending').count()===1);
   check('User-supplied markup is displayed as text',await page.locator('img[src="x"]').count()===0);

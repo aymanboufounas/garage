@@ -40,6 +40,7 @@ test('API protects accounts, prices, entrances, and booking state transitions',a
    const res=await fetch(base+'/api'+path,{method,headers:{Cookie:this.cookie,Origin:'http://localhost',...(method==='POST'?{'Content-Type':'application/json','X-CSRF-Token':this.csrf}:{}),...headers},body:body?JSON.stringify(body):undefined});
    if(res.headers.get('set-cookie'))this.cookie=res.headers.get('set-cookie').split(';')[0];
    const result=await res.json();if(result.csrf)this.csrf=result.csrf;
+   if(path==='/register'&&res.status===201)assert.equal((await this.request('/safety/guidelines/accept','POST',{version:'2026-11-18',accepted:true})).status,200);
    return {status:res.status,data:result,headers:res.headers};
   },async register(name){await this.request('/session');return this.request('/register','POST',{name,email:name.toLowerCase()+'@example.com',password:'A long secure test password!'});}};
  }
@@ -65,7 +66,7 @@ test('API protects accounts, prices, entrances, and booking state transitions',a
   assert.equal((await guest.request('/garages')).data.garages.length,0);
   db.prepare("UPDATE garages SET status='approved' WHERE id=?").run(gid);
   const pub=(await guest.request('/garages')).data.garages[0];
-  assert.equal(pub.address,undefined);assert.equal(pub.owner_id,undefined);assert.notEqual(pub.latitude,35.1681234);
+  assert.equal(pub.address,undefined);assert.match(pub.owner_id,/^[a-f0-9]{32}$/);assert.equal(pub.owner_email,undefined);assert.notEqual(pub.latitude,35.1681234);
   assert.equal(JSON.stringify(pub).includes('Secret gate'),false);
   assert.equal((await other.request('/host/garages')).data.garages.length,0);
  });

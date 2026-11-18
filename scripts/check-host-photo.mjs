@@ -61,6 +61,7 @@ async function runCase(demo) {
     await form.locator('[name=garage_photo]').setInputFiles(imageOne);
     await form.locator('[data-host-photo-preview]').waitFor({ state:'visible' });
     await form.locator('[name=photo_consent]').check();
+    await form.locator('[name=guidelines_accepted]').check();
     if (!demo) {
       // Reproduce an HTML error from a proxy with an outdated upload limit.
       await page.route('**/api/host/garages',async route => {
@@ -89,6 +90,7 @@ async function runCase(demo) {
     await photoForm.locator('[name=garage_photo]').setInputFiles(imageTwo);
     await photoForm.locator('[data-host-photo-preview]').waitFor({ state:'visible' });
     await photoForm.locator('[name=photo_consent]').check();
+    await photoForm.locator('[name=guidelines_accepted]').check();
     await photoForm.locator('[type=submit]').click();
     await photoForm.waitFor({ state:'detached' });
     await page.locator('.status.pending').waitFor();

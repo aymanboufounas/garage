@@ -15,7 +15,7 @@ async function setup(t) {
       const json=await response.json();if(json.csrf)this.csrf=json.csrf;
       return {status:response.status,json};
     },
-    async register(name,role){await this.call('/session');const r=await this.call('/register',{name,email:name+'@example.com',password});assert.equal(r.status,201);this.user=r.json.user;if(role)app.db.prepare('INSERT INTO staff_members VALUES (?,?)').run(this.user.id,role);return this;}
+    async register(name,role){await this.call('/session');const r=await this.call('/register',{name,email:name+'@example.com',password});assert.equal(r.status,201);this.user=r.json.user;assert.equal((await this.call('/safety/guidelines/accept',{version:'2026-11-18',accepted:true})).status,200);if(role)app.db.prepare('INSERT INTO staff_members VALUES (?,?)').run(this.user.id,role);return this;}
   };}
   const admin=await client().register('Admin','admin'),host=await client().register('Host'),renter=await client().register('Renter'),support=await client().register('Support','support');
   const fields={owner_id:host.user.id,name:'Admin managed garage',city:'Casablanca',area:'Centre',address:'Private gate 42',latitude:33.57,longitude:-7.58,hourly_cents:1000,monthly_cents:95000,height_cm:230,vehicle_size:'suv',covered:true,description:'A clear and accurate test garage description.'};

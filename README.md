@@ -120,6 +120,8 @@ For the remaining VPS, Android Studio and Play Console steps, follow [the live r
 
 Administrators have an overview with live totals and percentages, garage add/edit/review, account and role management, reservations, and support at `/admin.html`. See the [administration guide](docs/ADMINISTRATION.md). See [admin moderation setup and VPS update steps](docs/ADMIN-MODERATION.md), including the Nginx upload limit and one-time admin role assignment.
 
+The Play compliance changes add account settings for blocked users, moderation notices and verified account deletion; report controls for profiles, listings, messages and reviews; explicit Community Guidelines acceptance; and an administrator Reports queue. Public policy pages are `/privacy-policy`, `/delete-account` and `/community-guidelines`. These changes are prepared for review and require approved deployment, operator details and staffed human moderation before publication. See the [implementation and release review](docs/PLAY-COMPLIANCE-IMPLEMENTATION.md).
+
 Hosts upload their own garage photo when creating a listing or from **Host → My garages → Add/Change photo**. Administrators review and approve the submitted image. See [host photo deployment and Android update steps](docs/HOST-PHOTOS.md).
 
 [Download the unsigned Android App Bundle](dist/GarageShare-0.7.1-unsigned.aab) and follow the [Windows signing steps](docs/ANDROID-BUNDLE.md) before uploading it to Google Play.
@@ -128,6 +130,6 @@ Hosts upload their own garage photo when creating a listing or from **Host → M
 
 Run `npm test`. The suite checks time billing, concurrent overlaps, authoritative prices, idempotency, authorization, offer transitions, CSRF/origins, entrance privacy, database overlap triggers, and session revocation. See `docs/VALIDATION.md` for results from this delivery.
 
-The preview is ready for phone testing. A public launch still needs an HTTPS deployment, real listings and photos, a support operator, email verification and recovery, account deletion, final privacy and rental terms, and a signed release bundle. The current payment model is pay on arrival. Follow the staff setup and release steps in `docs/DEPLOYMENT.md` before opening the service to customers.
+The preview is ready for phone testing. A public launch still needs verified HTTPS operation, real listings and photos, staffed support/moderation, email verification and recovery, reviewed privacy and rental terms, enforced retention/backup procedures, device acceptance tests and a signed release bundle. Account deletion is implemented in this review branch and must be verified after approved deployment. The current payment model is pay on arrival. Follow the staff setup and release steps in `docs/DEPLOYMENT.md` before opening the service to customers.
 
 The original uploaded ZIP is unchanged. Its `.env`, credentials, database contents, PHP code, and payment configuration are not included in this app. Bundled sample garage art, fonts, and Leaflet are reused with their credits. Existing GarageShare accounts/bookings are not migrated; this backend starts with a separate schema.

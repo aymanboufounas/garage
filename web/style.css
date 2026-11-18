@@ -173,3 +173,17 @@ html:not([lang=ar]) .hero h1{font-family:DM,Manrope,sans-serif;font-weight:750}
 .host-photo-consent { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; line-height: 1.8; }
 .host-photo-consent input { flex-shrink: 0; margin-top: 5px; }
 .host-photo-preview[hidden] { display: none; }
+
+.safety-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 14px 0; align-items: center; }
+.safety-actions .text-button { font-size: 11px; }
+.safety-checkbox { display: flex; align-items: flex-start; gap: 10px; line-height: 1.8; font-size: 12px; }
+.safety-checkbox input { flex: 0 0 auto; margin-top: 6px; }
+.safety-guideline-consent { border: 1px solid var(--line); padding: 13px; border-radius: 12px; background: #f4f7ef; }
+.safety-guideline-consent .text-button { display: inline-block; margin-top: 8px; font-size: 11px; }
+.safety-block-row,.safety-notice { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 12px 0; }
+.safety-block-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.safety-block-row .small { margin-bottom: 0; }
+.safety-content .notice { margin: 14px 0; }
+.safety-guidelines { padding-inline-start: 20px; line-height: 1.8; }
+.chat-message .safety-actions { margin: 4px 0 0; }
+.chat-message .safety-actions button { font-size: 10px; }

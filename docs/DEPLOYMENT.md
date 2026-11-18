@@ -149,8 +149,49 @@ Sign in again at `/admin.html` on your GarageShare domain. Administrators can as
 ## Prepare a public Android release
 
 1. Deploy the live HTTPS service and verify backups, real listings and the full renter, host and support flows on Android devices.
-2. Complete account recovery and email verification, account deletion in the app and on the web, and the operator's privacy and rental policies. Set up staff access and incident handling.
+2. Complete account recovery and email verification, verify account deletion in the app and on the web, and review the operator's privacy and rental policies. Set up staff access and incident handling.
 3. Point the release Android build at the live origin, generate a signed Android App Bundle, and add the listing, privacy policy, Data safety answers and reviewer access in Play Console.
 4. Run the applicable Play Console tests before requesting production access. Personal developer accounts created after November 13, 2023 need a closed test with at least 12 continuously opted-in testers for 14 days.
 
 [Google Play account deletion](https://support.google.com/googleplay/android-developer/answer/13327111) · [Preparing an app for review](https://support.google.com/googleplay/android-developer/answer/9859455) · [Personal account testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465)
+
+## Play compliance branch: review before deployment
+
+The `feature/play-compliance` work has not been deployed by this implementation.
+Review [the implementation report](PLAY-COMPLIANCE-IMPLEMENTATION.md),
+[privacy review](PRIVACY-REVIEW.md), [Data safety inventory](PLAY-DATA-SAFETY.md),
+[moderation runbook](MODERATION-OPERATIONS.md) and
+[deletion/backup procedures](ACCOUNT-DELETION.md) before approving an update.
+
+After approval, take a consistent database/WAL and upload backup and test restoration
+before starting the new code. `openDatabase` automatically applies the three ordered,
+transactional additive SQL migrations. Never edit an already-applied migration or
+delete the live database to resolve a migration error. Keep the same service user,
+`DATA_DIR`, `APP_ORIGIN` and trusted proxy settings. A code rollback does not undo
+moderation/deletion actions; use a controlled maintenance window for any restore
+and reapply completed deletions before accepting traffic.
+
+The public policy receives only these nonsecret legal metadata environment values:
+`OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL`, `TRANSACTION_RETENTION_DAYS`,
+`MODERATION_RETENTION_DAYS`, `BACKUP_RETENTION_DAYS`, and
+`PRIVACY_POLICY_REVIEWED=1` after actual operator review. Use real reviewed values;
+missing values leave a visible review notice. The retention variables publish the
+operator's declared schedule; they do not implement transaction or backup erasure
+or configure report evidence expiry. Evidence cleanup uses the documented 90-day
+closed-case and 180-day absolute limits. Resolve any difference with the adopted
+policy before removing the review notice. Do not put secrets in these values.
+
+The minute maintenance task expires report evidence and retries safe queued photo
+cleanup. Monitor failures and unresolved cases. Set moderator coverage and appeals
+handling: the implementation provides human review, with no automated spam or
+language classifier. Verify `/privacy-policy`, `/delete-account`,
+`/community-guidelines` and `/api/legal` without login over real HTTPS. Exercise
+blocks, reports, deletion, booking and host photo acceptance on the actual Android
+release before confirming the corresponding Play declarations. The earlier unsigned
+0.7.1 AAB is unchanged by this task; its bundled offline assets have not been rebuilt.
+
+Keep `/assets/host-photos/` behind the Node handler, including encoded/versioned
+aliases. A direct Nginx/static-host/CDN file alias would bypass uploaded-photo
+authorization. Preserve the handler's `Cache-Control: no-store` response and do
+not publicly cache private uploads. Purge any prior intermediary cache on an
+approved rollout; previously downloaded or client-cached copies cannot be recalled.

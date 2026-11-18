@@ -1,4 +1,7 @@
 import { ApiError, checkedRequestKey, id, integer, limit, text, transaction } from './core.mjs';
+import { hasBlock, requireGuidelines, requireInteractionAllowed } from './user-safety.mjs';
+import { accountState } from './account-lifecycle.mjs';
+import { isContentRemoved } from './ugc-moderation.mjs';
 import { quoteChatOpen, reservationChatOpen } from '../web/chat-policy.js';
 
 const PAGE_SIZE = 60;
@@ -53,13 +56,18 @@ function getThread(db, context) {
 
 function summary(db, userId, context) {
   const host = context.host_id === userId;
-  const peer = db.prepare('SELECT name FROM users WHERE id=?').get(host ? context.guest_id : context.host_id);
+  const peerId = host ? context.guest_id : context.host_id;
+  const peer = db.prepare('SELECT name FROM users WHERE id=?').get(peerId);
+  const blockedByYou = Boolean(db.prepare('SELECT 1 FROM user_blocks WHERE blocker_id=? AND blocked_id=?').get(userId, peerId));
+  const blocked = hasBlock(db, userId, peerId) || accountState(db, peerId) !== 'active';
   return { kind: context.kind, id: context.id, garage_name: context.name,
-    peer_name: peer.name, role: host ? 'host' : 'renter', writable: context.writable };
+    peer_id: peerId, peer_name: peer.name, role: host ? 'host' : 'renter',
+    blocked_by_you: blockedByYou, interaction_blocked: blocked, writable: context.writable && !blocked };
 }
 
-function messageView(row, userId) {
-  return { seq: row.seq, own: row.sender_id === userId, message: row.message,
+function messageView(db, row, userId) {
+  const removed = isContentRemoved(db, 'message', String(row.seq));
+  return { seq: row.seq, own: row.sender_id === userId, message: removed ? '' : row.message, removed,
     created_at: row.created_at, read_at: row.read_at };
 }
 
@@ -74,18 +82,25 @@ function readConversation(db, userId, context, thread, params) {
   const after = cursor(params.get('after'));
   if (before && after) throw new ApiError('Choose a valid message reference.');
   const conversation = summary(db, userId, context);
-  if (!thread) return { conversation, messages: [], has_older: false, seen_through: 0 };
+  if (!thread) return { conversation, messages: [], has_older: false, seen_through: 0, removed_sequences: [] };
   const rows = after
     ? db.prepare('SELECT * FROM chat_messages WHERE thread_id=? AND seq>? ORDER BY seq LIMIT ?').all(thread.id, after, PAGE_SIZE)
     : db.prepare(`
         SELECT * FROM chat_messages WHERE thread_id=? AND (?=0 OR seq<?) ORDER BY seq DESC LIMIT ?
       `).all(thread.id, before, before, PAGE_SIZE + 1);
-  const messages = rows.slice(0, PAGE_SIZE).map(row => messageView(row, userId));
+  const messages = rows.slice(0, PAGE_SIZE).map(row => messageView(db, row, userId));
   if (!after) messages.reverse();
   const seen = db.prepare(`
     SELECT COALESCE(max(seq),0) AS seq FROM chat_messages WHERE thread_id=? AND sender_id=? AND read_at IS NOT NULL
   `).get(thread.id, userId);
-  return { conversation, messages, has_older: !after && rows.length > PAGE_SIZE, seen_through: seen.seq };
+  // Incremental polling must also invalidate a previously loaded message that
+  // was removed after its sequence cursor. This bounded list contains only
+  // tombstones belonging to the already-authorized participant thread.
+  const removed_sequences = db.prepare(`SELECT m.seq FROM chat_messages m
+    JOIN content_moderation c ON c.target_type='message' AND c.target_id=CAST(m.seq AS TEXT)
+    WHERE m.thread_id=? ORDER BY m.seq DESC LIMIT 1000`).all(thread.id).map(row => row.seq);
+  return { conversation, messages, has_older: !after && rows.length > PAGE_SIZE,
+    seen_through: seen.seq, removed_sequences };
 }
 
 function listConversations(db, userId) {
@@ -107,7 +122,7 @@ function listConversations(db, userId) {
       SELECT count(*) AS count FROM chat_messages WHERE thread_id=? AND sender_id<>? AND read_at IS NULL
     `).get(row.id, userId);
     conversations.push({ ...summary(db, userId, context), unread: unread.count,
-      latest: latest ? messageView(latest, userId) : null });
+      latest: latest ? messageView(db, latest, userId) : null });
   }
   return { conversations };
 }
@@ -118,12 +133,15 @@ function sendMessage(db, userId, kind, contextId, data) {
   limit(db, `chat-send:${userId}`, 60, 10 * 60000);
   return transaction(db, () => {
     const context = getContext(db, userId, kind, contextId);
+    const peerId = context.host_id === userId ? context.guest_id : context.host_id;
+    requireInteractionAllowed(db, userId, peerId);
     let thread = getThread(db, context);
     if (thread) {
       const previous = db.prepare('SELECT * FROM chat_messages WHERE thread_id=? AND sender_id=? AND request_key=?').get(thread.id, userId, key);
-      if (previous) return { message: messageView(previous, userId) };
+      if (previous) return { message: messageView(db, previous, userId) };
     }
     if (!context.writable) throw new ApiError('This conversation is read-only.', 409);
+    requireGuidelines(db, userId);
     const now = Date.now();
     if (!thread) {
       thread = { id: id() };

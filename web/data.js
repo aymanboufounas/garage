@@ -153,6 +153,17 @@ function previewPublicReviews(id) {
 
 export const repo={
  get demo(){return isDemo;},
+ async guidelines(){return isDemo?{version:'2026-11-18',accepted:false}:api('/safety/guidelines');},
+ async acceptGuidelines(version){return isDemo?{version,accepted:true}:api('/safety/guidelines/accept','POST',{version,accepted:true});},
+ async blockedUsers(){if(isDemo)throw new Error('Safety controls are available on the live service.');return api('/safety/blocks');},
+ async safetyProfile(id){if(isDemo)throw new Error('Safety controls are available on the live service.');return (await api('/safety/profile/'+id)).user;},
+ async blockUser(id){return api('/safety/blocks','POST',{user_id:id});},
+ async unblockUser(id){return api('/safety/blocks/'+id+'/remove','POST',{});},
+ async reportContent(data){return api('/safety/reports','POST',data);},
+ async accountNotices(){return api('/safety/notices');},
+ async deletionStatus(){return api('/account/deletion');},
+ async deleteAccount(data){return api('/account/delete','POST',data);},
+
  async init(){
   const [config,session]=await Promise.all([api('/config'),api('/session')]);
   isDemo=config.demo===true;csrf=session.csrf;
@@ -166,7 +177,7 @@ export const repo={
     }
    }catch{}
   }
-  return {demo:isDemo,user:isDemo?demoUser:session.user,googleSignIn:config.google_sign_in===true,googleAndroid:config.google_android===true};
+  return {demo:isDemo,user:isDemo?demoUser:session.user,googleSignIn:config.google_sign_in===true,guidelinesVersion:config.guidelines_version||'2026-11-18',googleAndroid:config.google_android===true};
  },
  async garages(){
   if(!isDemo)return (await api('/garages')).garages;

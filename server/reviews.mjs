@@ -15,11 +15,11 @@ function stay(db, userId, reservationId) {
 function reviewView(db, row, userId, now) {
   const role = row.owner_id === userId ? 'host' : 'renter';
   const deadline = row.ends_at + REVIEW_WINDOW;
-  const reviews = db.prepare('SELECT role,rating,comment,created_at,publish_at FROM stay_reviews WHERE reservation_id=?').all(row.id);
+  const reviews = db.prepare(`SELECT role,rating,comment,created_at,publish_at,reservation_id||':'||role AS report_id FROM stay_reviews r WHERE reservation_id=? AND NOT EXISTS (SELECT 1 FROM content_moderation cm WHERE cm.target_type='review' AND cm.target_id=r.reservation_id||':'||r.role)`).all(row.id);
   const mine = reviews.find(review => review.role === role) || null;
   const other = reviews.find(review => review.role !== role && review.publish_at <= now) || null;
   return { reservation_id: row.id, garage_name: row.name, role, deadline, mine, other,
-    can_review: row.status === 'confirmed' && row.ends_at <= now && now < deadline && !mine,
+    can_review: row.status === 'confirmed' && row.ends_at <= now && now < deadline && !mine && !db.prepare('SELECT 1 FROM stay_reviews WHERE reservation_id=? AND role=?').get(row.id,role),
     published: Boolean(mine && mine.publish_at <= now) };
 }
 
@@ -28,8 +28,8 @@ export function garageReviews(db, garageId) {
     throw new ApiError('This garage is unavailable.', 404);
   }
   const reviews = db.prepare(`
-    SELECT r.rating,r.comment,r.created_at FROM stay_reviews r JOIN reservations b ON b.id=r.reservation_id
-    WHERE b.garage_id=? AND b.status='confirmed' AND r.role='renter' AND r.publish_at<=?
+    SELECT r.rating,r.comment,r.created_at,r.reservation_id||':'||r.role AS report_id FROM stay_reviews r JOIN reservations b ON b.id=r.reservation_id
+    WHERE b.garage_id=? AND b.status='confirmed' AND r.role='renter' AND r.publish_at<=? AND NOT EXISTS (SELECT 1 FROM content_moderation cm WHERE cm.target_type='review' AND cm.target_id=r.reservation_id||':'||r.role)
     ORDER BY r.publish_at DESC,r.created_at DESC LIMIT 30
   `).all(garageId, Date.now());
   return { reviews };

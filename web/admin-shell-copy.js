@@ -1,4 +1,6 @@
 export const adminShellCopy = {
+ adminNav_reports:['Reports','Signalements','البلاغات'],
+ adminIntro_reports:['Review reported content and enforce community guidelines.','Examinez les signalements et appliquez les règles de la communauté.','راجع المحتوى المبلّغ عنه وطبّق إرشادات المجتمع.'],
  adminNavigation:['Administration navigation','Navigation d’administration','قائمة الإدارة'],
  adminWorkspace:['Workspace','Espace de gestion','مساحة الإدارة'],
  adminRole:['Administrator','Administrateur','مسؤول'],

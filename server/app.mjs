@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, lstat } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
@@ -15,6 +15,11 @@ import { chatRoute } from './chat.mjs';
 import { browseGarages, calendarRoute } from './availability.mjs';
 import { garageReviews, reviewsRoute } from './reviews.mjs';
 import { makeGoogleAuth } from './google-auth.mjs';
+import { assertAccountActive, accountState, accountDeletionRoute } from './account-lifecycle.mjs';
+import { GUIDELINES_VERSION, requireGuidelines, requireInteractionAllowed, safetyRoute } from './user-safety.mjs';
+import { ugcModerationRoute } from './ugc-moderation.mjs';
+import { publicPolicyConfig, PUBLIC_POLICY_PAGES } from './public-policies.mjs';
+import { uploadedPhotoAccess } from './photo-access.mjs';
 
 const MAX_BODY=16000, HOUR=3600000;
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.woff2':'font/woff2','.json':'application/json'};
@@ -33,9 +38,10 @@ export function makeApp(options={}) {
   const google=demo?null:makeGoogleAuth({db,origin,config:options.google,request:options.googleFetch});
   const cookieName=production?'__Host-garageshare':'garageshare_session';
   function safeUser(user) {
-    if (!user) return null;
+    if (!user || accountState(db,user.id)==='deleted') return null;
+    const state=accountState(db,user.id);
     const googleConnected=google&&Boolean(db.prepare('SELECT 1 FROM google_identities WHERE user_id=?').get(user.id));
-    return { id: user.id, name: user.name, email: user.email, staff_role: staffRole(db, user.id),
+    return { id: user.id, name: user.name, email: user.email, staff_role: state==='active'?staffRole(db, user.id):undefined, account_state:state,
       google_connected: google ? googleConnected : undefined };
   }
   // A real hash ensures unknown accounts perform the same password work.
@@ -64,6 +70,7 @@ export function makeApp(options={}) {
     const token=readCookie(req,cookieName);
     const now=Date.now();
     let found=token&&/^[a-f0-9]{64}$/.test(token)?db.prepare('SELECT * FROM sessions WHERE token_hash=? AND expires_at>? AND last_seen>?').get(hash(token),now,now-30*60000):null;
+    if(found?.user_id && accountState(db,found.user_id)==='deleted') { db.prepare('DELETE FROM sessions WHERE token_hash=?').run(found.token_hash); found=null; }
     if(found) { db.prepare('UPDATE sessions SET last_seen=? WHERE token_hash=?').run(now,found.token_hash); return found; }
     limit(db,`session:${clientIP(req)}`,60,60000);
     const fresh=randomBytes(32).toString('hex');
@@ -75,6 +82,7 @@ export function makeApp(options={}) {
     const token=randomBytes(32).toString('hex'), csrf=randomBytes(32).toString('hex'),now=Date.now();
     const userId=transaction(db,()=>{
       const uid=selectUserId();
+      if(accountState(db,uid)==='deleted') throw new ApiError('Sign in to continue.',401);
       db.prepare('DELETE FROM sessions WHERE token_hash=?').run(oldSession.token_hash);
       db.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)').run(hash(token),uid,csrf,now+12*HOUR,now,now);
       return uid;
@@ -82,9 +90,10 @@ export function makeApp(options={}) {
     cookie(res,token);
     return {user:safeUser(db.prepare('SELECT * FROM users WHERE id=?').get(userId)),csrf};
   }
-  function requireUser(s) {
+  function requireUser(s,allowSuspended=false) {
     const user=s.user_id&&db.prepare('SELECT * FROM users WHERE id=?').get(s.user_id);
     if(!user) throw new ApiError('Sign in to continue.',401);
+    if(!allowSuspended || accountState(db,user.id)!=='suspended') assertAccountActive(db,user.id);
     return user;
   }
   async function body(req, maximum=MAX_BODY) {
@@ -95,6 +104,11 @@ export function makeApp(options={}) {
     let result;
     try { result=JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new ApiError('Invalid JSON.'); }
     if(!result||typeof result!=='object'||Array.isArray(result)) throw new ApiError('Send a JSON object.');
+    if(req.authenticatedSession) {
+      const current=db.prepare('SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>? AND last_seen>?').get(req.authenticatedSession.token_hash,Date.now(),Date.now()-30*60000);
+      if(!current || current.user_id!==req.authenticatedSession.user_id) throw new ApiError('Sign in to continue.',401);
+      requireUser(req.authenticatedSession,req.allowSuspended);
+    }
     return result;
   }
   const server=createServer(async(req,res)=>{
@@ -106,10 +120,11 @@ export function makeApp(options={}) {
         limit(db,`google-browser:${clientIP(req)}`,60,60000);
         return await google.browser(req,res,url,readCookie,readCookie(req,cookieName),requestLanguage(req.headers['accept-language']));
       }
+      if(req.method==='GET'&&path==='/api/legal') return reply(res,publicPolicyConfig(options.legal||{}));
       if(path.startsWith('/api/')) {
         limit(db,`api:${clientIP(req)}`,240,60000);
         if(req.method==='GET'&&path==='/api/config') return reply(res,{demo,timezone:'Africa/Casablanca',currency:'MAD',payment_mode:'pay_on_arrival',cities,
-          google_sign_in:Boolean(google),google_android:Boolean(google?.appLinks.length)});
+          google_sign_in:Boolean(google),google_android:Boolean(google?.appLinks.length),guidelines_version:GUIDELINES_VERSION,moderation_mode:'reported_content_human_review'});
         if(!['GET','POST'].includes(req.method)) { res.setHeader('Allow','GET, POST'); throw new ApiError('Method not allowed.',405); }
         const s=session(req,res), ip=clientIP(req);
         db.prepare("UPDATE reservations SET status='expired',updated_at=? WHERE status IN ('requested','countered') AND expires_at<=?").run(Date.now(),Date.now());
@@ -146,6 +161,8 @@ export function makeApp(options={}) {
           }
           const user=db.prepare('SELECT * FROM users WHERE email=?').get(email);
           if(!(await passwordMatches(password,user?.password_hash||await dummyHash))||!user?.password_hash) throw new ApiError('Email or password is incorrect.',401);
+          const current=db.prepare('SELECT email,password_hash FROM users WHERE id=?').get(user.id);
+          if(!current || current.email!==user.email || current.password_hash!==user.password_hash) throw new ApiError('Email or password is incorrect.',401);
           audit(db,user.id,'login',user.id);return reply(res,signIn(res,s,()=>user.id));
         }
         if(req.method==='POST'&&path==='/api/logout') {
@@ -153,11 +170,17 @@ export function makeApp(options={}) {
           res.setHeader('Set-Cookie',`${cookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${production?'; Secure':''}`);
           return reply(res,{ok:true});
         }
-        const user=requireUser(s);
+        req.allowSuspended=/^\/api\/(?:account\/(?:deletion|delete)|support\/|safety\/notices$)/.test(path);
+        const user=requireUser(s,req.allowSuspended);
+        req.authenticatedSession=s;
+        if(/^\/api\/account\/(?:deletion|delete)$/.test(path)) return reply(res,await accountDeletionRoute(db,web,user,s,req.method,path,req.method==='POST'?await body(req):{}));
+        if(path==='/api/safety/reports'||path==='/api/safety/notices'||/^\/api\/staff\/reports(?:\/|$)/.test(path)) return reply(res,ugcModerationRoute(db,user,req.method,path,url.searchParams,req.method==='POST'?await body(req):{}));
+        if(/^\/api\/safety\//.test(path)) return reply(res,safetyRoute(db,user,req.method,path,url.searchParams,req.method==='POST'?await body(req):{}));
         if (/^\/api\/host\/calendar(?:\/|$)/.test(path)) {
           return reply(res, calendarRoute(db, user.id, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
         }
         if (/^\/api\/reviews(?:\/|$)/.test(path)) {
+          if(req.method==='POST') requireGuidelines(db,user.id);
           return reply(res, reviewsRoute(db, user.id, req.method, path, req.method === 'POST' ? await body(req) : {}));
         }
         if (/^\/api\/chat(?:\/|$)/.test(path)) {
@@ -184,12 +207,14 @@ export function makeApp(options={}) {
         }
         const hostPhoto = path.match(/^\/api\/host\/garages\/([a-f0-9]{32})\/photo$/);
         if(req.method==='POST'&&hostPhoto) {
+          requireGuidelines(db,user.id);
           requireHostPhotoListing(db, user, hostPhoto[1]);
           limit(db, `listing-photo:${user.id}`, 10, HOUR);
           return reply(res, submitHostPhoto(db, web, user, hostPhoto[1], await body(req, 7*1024*1024)));
         }
         if(req.method==='GET'&&path==='/api/host/garages') return reply(res,{garages:db.prepare('SELECT * FROM garages WHERE owner_id=? ORDER BY created_at DESC').all(user.id)});
         if(req.method==='POST'&&path==='/api/host/garages') {
+          requireGuidelines(db,user.id);
           limit(db,`listing:${user.id}`,10,HOUR);
           const data=await body(req,7*1024*1024),name=text(data,'name',3,100),city=text(data,'city',2,60),area=text(data,'area',2,100),address=text(data,'address',5,220),description=text(data,'description',10,1500);
           if(!cities.includes(city)) throw new ApiError('Choose a supported city.');
@@ -201,6 +226,7 @@ export function makeApp(options={}) {
           const gid=id(),bytes=Object.hasOwn(data,'photo_base64')?decodeListingPhoto(data.photo_base64):null;
           const result=withListingPhoto(web,bytes,uploadedImage=>transaction(db,()=>{
             const image=uploadedImage||'/assets/garage-placeholder.svg';
+            if(uploadedImage)db.prepare('INSERT OR IGNORE INTO listing_photo_owners(image,user_id,created_at) VALUES(?,?,?)').run(image,user.id,Date.now());
             db.prepare('INSERT INTO garages VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(gid,user.id,name,city,area,address,data.latitude,data.longitude,hourly,monthly,height,data.vehicle_size,data.covered?1:0,description,image,'pending',Date.now());
             audit(db,user.id,'listing_submitted',gid);return {id:gid,status:'pending',image};
           }));
@@ -232,6 +258,7 @@ export function makeApp(options={}) {
           if(previous) return reply(res,{reservation:previous},200);
           const period=interval(data),garage=db.prepare("SELECT * FROM garages WHERE id=? AND status='approved'").get(text(data,'garage_id',32,32));
           if(!garage) throw new ApiError('This garage is unavailable.',404);
+          requireInteractionAllowed(db,user.id,garage.owner_id);
           if(garage.owner_id===user.id) throw new ApiError('You cannot book your own garage.',409);
           const listed=(period.mode==='hourly'?garage.hourly_cents:garage.monthly_cents)*period.units;
           if(!['book','offer'].includes(data.action)) throw new ApiError('Choose book or propose a price.');
@@ -258,11 +285,13 @@ export function makeApp(options={}) {
               if(!isHost||!['requested','countered'].includes(row.status)) throw new ApiError('This action is not available.',409);
               db.prepare("UPDATE reservations SET status='declined',updated_at=? WHERE id=?").run(now,rid);
             } else if(action==='counter') {
+              requireInteractionAllowed(db,row.guest_id,row.owner_id);
               if(!isHost||row.status!=='requested') throw new ApiError('Only the host can counter a new offer.',403);
               const listed=(row.mode==='hourly'?row.hourly_cents:row.monthly_cents)*row.units;
               const total=integer(data.total_cents,Math.ceil(listed*0.6),listed*2,'counter offer');
               db.prepare("UPDATE reservations SET status='countered',total_cents=?,updated_at=? WHERE id=?").run(total,now,rid);
             } else {
+              requireInteractionAllowed(db,row.guest_id,row.owner_id);
               if(!((isHost&&row.status==='requested')||(!isHost&&row.status==='countered'))) throw new ApiError('Only the other party can accept this offer.',403);
               if(row.expires_at<=now||row.starts_at<=now) throw new ApiError('This offer expired.',409);
               const available=db.prepare('SELECT status FROM garages WHERE id=?').get(row.garage_id);
@@ -279,19 +308,35 @@ export function makeApp(options={}) {
       }
       if(!['GET','HEAD'].includes(req.method)) throw new ApiError('Method not allowed.',405);
       let decoded;
-      try { decoded=decodeURIComponent(webAssets.staticPath(path)); } catch(error) {
+      try { decoded=decodeURIComponent(webAssets.staticPath(PUBLIC_POLICY_PAGES[path]||path)); } catch(error) {
         if(error instanceof ApiError) throw error;
         throw new ApiError('Invalid URL.',400);
       }
       const file=resolve(web,'.'+(decoded==='/'?'/index.html':decoded));
       if(!file.startsWith(web+sep)||decoded.split('/').some(p=>p.startsWith('.'))||!MIME[extname(file)]) throw new ApiError('Not found.',404);
+      const photoDirectory=resolve(web,'assets/host-photos');
+      if(file===photoDirectory || file.startsWith(photoDirectory+sep)) {
+        const image='/assets/host-photos/'+file.slice(photoDirectory.length+1);
+        const token=readCookie(req,cookieName);
+        uploadedPhotoAccess(db,image,token);
+        let photoInfo,directoryInfo,contents;
+        try {
+          [photoInfo,directoryInfo]=await Promise.all([lstat(file),lstat(photoDirectory)]);
+          if(photoInfo.isSymbolicLink() || !photoInfo.isFile() || photoInfo.size>5*1024*1024 || directoryInfo.isSymbolicLink() || !directoryInfo.isDirectory()) throw new Error('Invalid photo.');
+          if(req.method!=='HEAD') contents=await readFile(file);
+        } catch { throw new ApiError('Not found.',404); }
+        const access=uploadedPhotoAccess(db,image,token);
+        if(access.audit_action) audit(db,access.user_id,access.audit_action,access.target_id);
+        res.writeHead(200,{'Content-Type':'image/webp','Cache-Control':'no-store','Vary':'Cookie'});
+        return res.end(req.method==='HEAD'?undefined:contents);
+      }
       let info;
       try { info=await stat(file); } catch { throw new ApiError('Not found.',404); }
       if(!info.isFile()) throw new ApiError('Not found.',404);
       res.writeHead(200,{'Content-Type':MIME[extname(file)],'Cache-Control':extname(file)==='.html'?'no-store':['.js','.mjs','.css'].includes(extname(file))?'no-cache':'public, max-age=3600'});
       if(req.method==='HEAD') return res.end();
       const contents=await readFile(file);
-      res.end(['/', '/index.html', '/admin.html'].includes(decoded)?webAssets.rewriteAdminHtml(contents.toString('utf8')):contents);
+      res.end(extname(file)==='.html'?webAssets.rewriteAdminHtml(contents.toString('utf8')):contents);
     } catch(error) {
       if(res.headersSent) { res.end();return; }
       const overlap=String(error.message).includes('reservation_overlap');

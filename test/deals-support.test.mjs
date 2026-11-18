@@ -48,6 +48,7 @@ async function setup(t, filename = ':memory:') {
         assert.equal(r.status, 201);
         assert.equal(r.json.user.staff_role, undefined);
         this.user = r.json.user;
+        assert.equal((await this.call('/safety/guidelines/accept',{version:'2026-11-18',accepted:true})).status,200);
         return this;
       },
       async signIn() {

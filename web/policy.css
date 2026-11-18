@@ -1,0 +1,26 @@
+.policy-page { min-height: 100vh; background: #f7f9f7; color: #203630; }
+.policy-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; padding: 20px max(22px,calc((100vw - 1020px)/2)); background: #fff; border-bottom: 1px solid #e0e7e2; }
+.policy-header .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+.policy-header .brand img { width: 40px; height: 40px; }
+.policy-language { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.policy-language select { border: 1px solid #dce5de; border-radius: 9px; background: white; padding: 9px; color: inherit; }
+.policy-main { max-width: 900px; margin: 36px auto; padding: 32px; background: white; border: 1px solid #e0e7e2; border-radius: 20px; }
+.policy-main h1 { font-size: clamp(28px,5vw,42px); letter-spacing: -.8px; margin: 8px 0 14px; }
+.policy-main h2 { font-size: 21px; margin: 28px 0 12px; }
+.policy-main h3 { font-size: 17px; margin: 20px 0 8px; }
+.policy-main p,.policy-main li { line-height: 1.9; font-size: 14px; overflow-wrap: anywhere; }
+.policy-main li { margin-bottom: 8px; }
+.policy-meta { color: #75847c; font-size: 12px!important; }
+.policy-review { background: #fff3df; border: 1px solid #ead8b4; padding: 18px; border-radius: 12px; margin: 22px 0; }
+.policy-review strong { display: block; margin-bottom: 8px; }
+.policy-review p { margin: 6px 0; }
+.policy-contact { background: #f1f6f2; border: 1px solid #dce7de; padding: 18px; border-radius: 12px; }
+.policy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 24px 0; }
+.policy-main a,.policy-footer a { color: #235d42; text-underline-offset: 3px; }
+.policy-main .primary { color: #fff; text-decoration: none; }
+.policy-footer { max-width: 900px; margin: 20px auto 40px; padding: 0 22px; }
+.policy-footer nav { display: flex; flex-wrap: wrap; gap: 12px 24px; font-size: 12px; }
+.policy-main table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.policy-main th,.policy-main td { text-align: start; border-bottom: 1px solid #e1e7e2; padding: 12px 8px; vertical-align: top; }
+.policy-main .policy-table { max-width: 100%; overflow-x: auto; }
+@media(max-width:600px) { .policy-main { margin: 20px 12px; padding: 22px 18px; } .policy-header { padding: 15px; } .policy-header .brand { font-size: 22px; } .policy-header .brand img { width: 32px; height: 32px; } .policy-language span { display: none; } .policy-main p,.policy-main li { font-size: 13px; } }

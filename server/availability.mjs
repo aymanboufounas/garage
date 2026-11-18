@@ -14,10 +14,10 @@ export function browseGarages(db, params) {
     LEFT JOIN (
       SELECT b.garage_id,round(avg(r.rating),1) AS rating,count(*) AS review_count
       FROM stay_reviews r JOIN reservations b ON b.id=r.reservation_id
-      WHERE b.status='confirmed' AND r.role='renter' AND r.publish_at<=?
+      WHERE b.status='confirmed' AND r.role='renter' AND r.publish_at<=? AND NOT EXISTS (SELECT 1 FROM content_moderation cm WHERE cm.target_type='review' AND cm.target_id=r.reservation_id||':'||r.role)
       GROUP BY b.garage_id
     ) score ON score.garage_id=g.id
-    WHERE g.status='approved' AND (? IS NULL OR g.city=?) ${period ? `AND ${garageAvailableSql}` : ''}
+    WHERE g.status='approved' AND NOT EXISTS (SELECT 1 FROM content_moderation cm WHERE cm.target_type='garage' AND cm.target_id=g.id) AND (? IS NULL OR g.city=?) ${period ? `AND ${garageAvailableSql}` : ''}
     ORDER BY g.created_at DESC LIMIT 200
   `).all(Date.now(), city, city, ...times);
   return { garages: rows.map(publicGarage), period };
