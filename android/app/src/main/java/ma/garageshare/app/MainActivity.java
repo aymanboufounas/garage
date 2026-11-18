@@ -18,6 +18,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.widget.FrameLayout;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -30,6 +31,8 @@ public class MainActivity extends Activity {
     private Uri appOrigin;
     private GeolocationPermissions.Callback locationCallback;
     private String locationOrigin;
+    private static final int PHOTO_PICKER = 41;
+    private ValueCallback<Uri[]> photoCallback;
 
     private boolean trusted(Uri uri) {
         return "https".equals(uri.getScheme()) && appOrigin.getHost().equals(uri.getHost())
@@ -92,7 +95,7 @@ public class MainActivity extends Activity {
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true); // Required only for our same-origin application.
         settings.setDomStorageEnabled(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.7.0 Android");
+        settings.setUserAgentString(settings.getUserAgentString() + " GarageShare/0.7.1 Android");
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -138,6 +141,24 @@ public class MainActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                // The system document picker grants access only to the photo the host chooses.
+                // Do not expose a file picker to a page outside our trusted app origin.
+                if (view.getUrl() == null || !trusted(Uri.parse(view.getUrl()))) return false;
+                if (photoCallback != null) photoCallback.onReceiveValue(null);
+                photoCallback = callback;
+                Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                pick.addCategory(Intent.CATEGORY_OPENABLE);
+                pick.setType("image/*");
+                pick.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/jpeg", "image/png", "image/webp"});
+                pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try { startActivityForResult(pick, PHOTO_PICKER); }
+                catch (android.content.ActivityNotFoundException error) {
+                    photoCallback = null;
+                    callback.onReceiveValue(null);
+                }
+                return true;
+            }
             @Override public void onGeolocationPermissionsShowPrompt(String origin,GeolocationPermissions.Callback callback) {
                 if (!trusted(Uri.parse(origin))) { callback.invoke(origin,false,false);return; }
                 if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)==PackageManager.PERMISSION_GRANTED) { callback.invoke(origin,true,false);return; }
@@ -148,6 +169,16 @@ public class MainActivity extends Activity {
         });
         if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,this::goBack);
         if (!finishGoogle(getIntent())) web.loadUrl(appUrl());
+    }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PHOTO_PICKER || photoCallback == null) return;
+        ValueCallback<Uri[]> callback = photoCallback;
+        photoCallback = null;
+        Uri selected = resultCode == RESULT_OK && data != null ? data.getData() : null;
+        boolean allowed = selected != null && "content".equals(selected.getScheme())
+            && web != null && web.getUrl() != null && trusted(Uri.parse(web.getUrl()));
+        callback.onReceiveValue(allowed ? new Uri[]{selected} : null);
     }
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -162,6 +193,7 @@ public class MainActivity extends Activity {
         if (code==7 && locationCallback!=null) { locationCallback.invoke(locationOrigin,grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED,false);locationCallback=null; }
     }
     @Override protected void onDestroy() {
+        if (photoCallback != null) { photoCallback.onReceiveValue(null); photoCallback = null; }
         if (locationCallback!=null) locationCallback.invoke(locationOrigin,false,false);
         if (web!=null) { web.stopLoading();web.destroy(); }
         super.onDestroy();

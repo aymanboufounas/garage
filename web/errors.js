@@ -1,5 +1,7 @@
 // Shared by the server and browser: API semantics remain stable across languages.
 const messages={
+ 'Ask the host to upload a garage photo before approval.':['Demandez à l’hôte d’ajouter une photo du garage avant approbation.','اطلب من المضيف رفع صورة للمرآب قبل الاعتماد.'],
+ 'The listing photo is unavailable. Ask the host to upload it again.':['La photo est indisponible. Demandez à l’hôte de la renvoyer.','صورة الإعلان غير متاحة. اطلب من المضيف رفعها مجددًا.'],
  "Choose a valid account or listing.":["Choisissez un compte ou une annonce valide.", "اختر حسابًا أو إعلانًا صالحًا."],
  "Invalid page or search.":["Page ou recherche non valide.", "الصفحة أو البحث غير صالح."],
  "Account not found.":["Compte introuvable.", "الحساب غير موجود."],

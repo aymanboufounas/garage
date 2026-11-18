@@ -1,34 +1,9 @@
-import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { ApiError, audit, id, transaction } from './core.mjs';
+import { ApiError, audit, transaction } from './core.mjs';
 import { staffRole } from './support.mjs';
+import { decodeListingPhoto, requireStoredListingPhoto, withListingPhoto } from './listing-photos.mjs';
 
 export function requireModerator(db, user) {
   if (staffRole(db, user.id) !== 'admin') throw new ApiError('Administrator access is required.', 403);
-}
-
-function photoBytes(value) {
-  if (typeof value !== 'string' || value.length > 6990508 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
-    throw new ApiError('Choose a WebP photo under 5 MB.');
-  }
-  const bytes = Buffer.from(value, 'base64');
-  if (bytes.toString('base64') !== value || bytes.length < 20 || bytes.length > 5 * 1024 * 1024 ||
-      bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WEBP' ||
-      bytes.readUInt32LE(4) !== bytes.length - 8) throw new ApiError('Choose a valid WebP photo.');
-  let image = false;
-  for (let offset = 12; offset < bytes.length;) {
-    if (offset + 8 > bytes.length) throw new ApiError('Choose a valid WebP photo.');
-    const kind = bytes.toString('ascii', offset, offset + 4);
-    const length = bytes.readUInt32LE(offset + 4);
-    const next = offset + 8 + length + (length % 2);
-    if (next > bytes.length || ['EXIF', 'XMP ', 'ICCP', 'ANIM', 'ANMF'].includes(kind)) {
-      throw new ApiError('Use a still WebP photo without metadata.');
-    }
-    if (['VP8 ', 'VP8L'].includes(kind) && length > 0) image = true;
-    offset = next;
-  }
-  if (!image) throw new ApiError('Choose a valid WebP photo.');
-  return bytes;
 }
 
 export function moderationRoute(db, web, user, method, path, params, data) {
@@ -52,29 +27,23 @@ export function moderationRoute(db, web, user, method, path, params, data) {
     throw new ApiError('This listing cannot be changed in its current status.', 409);
   }
   if (action === 'approve' && data.confirmed !== true) throw new ApiError('Confirm the listing and photo review.');
-  let filename;
-  try {
-    const image = action === 'approve' ? photoBytes(data.photo_base64) : null;
-    return transaction(db, () => {
-      if (action !== 'approve' && db.prepare("SELECT 1 FROM reservations WHERE garage_id=? AND status='confirmed' AND ends_at>?").get(gid, Date.now())) {
-        throw new ApiError('Resolve upcoming reservations before archiving or rejecting this space.', 409);
-      }
-      const status = { approve: 'approved', reject: 'rejected', archive: 'archived' }[action];
-      let imagePath = row.image;
-      if (image) {
-        const directory = resolve(web, 'assets/host-photos');
-        mkdirSync(directory, { recursive: true });
-        const name = id() + '.webp';
-        filename = resolve(directory, name);
-        writeFileSync(filename, image, { flag: 'wx', mode: 0o644 });
-        imagePath = '/assets/host-photos/' + name;
-      }
-      db.prepare('UPDATE garages SET status=?,image=? WHERE id=?').run(status, imagePath, gid);
-      audit(db, user.id, 'moderator_' + (action === 'approve' ? 'approved' : action), gid);
-      return { id: gid, status, image: imagePath };
-    });
-  } catch (error) {
-    if (filename) { try { unlinkSync(filename); } catch {} }
-    throw error;
+  let bytes = null;
+  if (action === 'approve') {
+    if (Object.hasOwn(data, 'expected_image') && data.expected_image !== row.image) throw new ApiError('Listing changed. Refresh and try again.', 409);
+    if (Object.hasOwn(data, 'photo_base64')) bytes = decodeListingPhoto(data.photo_base64);
+    else {
+      if (data.expected_image !== row.image) throw new ApiError('Listing changed. Refresh and try again.', 409);
+      requireStoredListingPhoto(web, row.image);
+    }
   }
+  return withListingPhoto(web, bytes, uploadedImage => transaction(db, () => {
+    if (action !== 'approve' && db.prepare("SELECT 1 FROM reservations WHERE garage_id=? AND status='confirmed' AND ends_at>?").get(gid, Date.now())) {
+      throw new ApiError('Resolve upcoming reservations before archiving or rejecting this space.', 409);
+    }
+    const status = { approve: 'approved', reject: 'rejected', archive: 'archived' }[action];
+    const image = uploadedImage || row.image;
+    db.prepare('UPDATE garages SET status=?,image=? WHERE id=?').run(status, image, gid);
+    audit(db, user.id, 'moderator_' + (action === 'approve' ? 'approved' : action), gid);
+    return { id: gid, status, image };
+  }));
 }

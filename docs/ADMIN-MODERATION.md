@@ -80,10 +80,10 @@ Future garage review/approval is done from the dashboard without terminal comman
 2. Review the owner's name/email, private entrance address and coordinates,
    description, vehicle fit, cover, height and prices. Private entrance details
    in this section are available only to administrators.
-3. Choose an accurate authorized JPEG, PNG or WebP photo (up to 10 MB). The browser
-   shows the selected photo and converts it to a still WebP up to 1920 pixels,
-   stripping metadata. The server stores it under a random filename.
-4. Check the review confirmation and click Approve and publish. The listing
+3. Review the photo uploaded by the host. If it is missing or inaccurate, ask the
+   host to use Host → My garages → Add/Change photo. Administrators do not need
+   to upload a replacement photo. Missing or failed images block approval.
+4. Check the review confirmation and click Approve and publish. Approval checks that the submitted image is still the one you reviewed; a changed image requires refreshing and reviewing again. The listing
    moves out of Pending and appears in public Explore. Approval uses the existing
    pending status; a stale/repeated decision is rejected rather than silently
    overwriting another moderator's decision.
@@ -109,6 +109,6 @@ NODE_PATH=../garage-qa-tools/node_modules BROWSER_EXECUTABLE=/usr/bin/chromium n
 
 Use your installed Chromium path; alternatively install Playwright's browser
 and omit BROWSER_EXECUTABLE. This creates an isolated temporary website and an
-in-memory database, checks admin sign-in, escaping, photo preview and upload,
-approval, archiving and Arabic mobile layout, then cleans up the temporary state.
+in-memory database, checks admin sign-in, escaping, host-submitted photo display,
+stale-photo review protection, approval, archiving and Arabic mobile layout, then cleans up the temporary state.
 A screenshot is saved in ignored `test-results/admin-moderation.png`.

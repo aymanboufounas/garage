@@ -25,6 +25,8 @@ test('admin entry points and their transitive imports share a content-versioned 
  const prefix=`/__assets/${entry[2]}/`;
  assert.ok(html.includes(`href="${prefix}admin.css"`));
  assert.ok(html.includes(`href="${prefix}style.css"`));
+ const hostHtml=await fetch(base+'/').then(r=>r.text());
+ assert.ok(hostHtml.includes(`src="${prefix}app.js"`),'host workflow modules share the current deployment revision');
  const source=await fetch(base+entry[1]);assert.equal(source.status,200);assert.equal(source.headers.get('cache-control'),'no-cache');
  const javascript=await source.text();assert.match(javascript,/\.\/i18n\.js/);
  const translationURL=new URL('./i18n.js',base+entry[1]);

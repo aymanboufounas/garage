@@ -4,14 +4,9 @@ This is a Node.js + SQLite service, not a PHP/shared-hosting drop-in. The old `p
 
 ## Local live check
 
-From the project root, unset `GARAGESHARE_DEMO` and run `npm start`. Open http://localhost:3000, register a host account and submit a garage. It will be pending and absent from public search. Use the server terminal:
+From the project root, unset `GARAGESHARE_DEMO` and run `npm start`. Open http://localhost:3000, register a host account and submit a garage. It will be pending and absent from public search. The host selects an accurate authorized garage photo in the listing form. An administrator reviews that submitted photo at `/admin.html` and approves it. For an existing draft, the host uses Host → My garages → Add garage photo. See [Host photos](HOST-PHOTOS.md) for upload limits and Android support.
 
-```bash
-npm run admin -- pending
-npm run admin -- approve LISTING_ID /absolute/accurate-photo.webp
-```
-
-Replace `LISTING_ID` with the actual pending ID. The photo must be an accurate, authorized WebP under 5 MB. Review the owner's right to rent, entrance, size and description; re-encode the photo to strip metadata before approval. The CLI copies it into `web/assets/host-photos` with a random name. Never approve fictional demo art as a real listing.
+The server moderation CLI remains available for older operator tooling, but the normal approval workflow does not ask the administrator to upload a replacement image.
 
 Open a second browser profile and register a renter to test live booking. Passwords and database are separate from the preview. No outgoing email or payment transaction is triggered.
 
@@ -69,7 +64,16 @@ server {
     ssl_certificate /etc/letsencrypt/live/app.YOUR_DOMAIN/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/app.YOUR_DOMAIN/privkey.pem;
     client_max_body_size 20k;
-    # Bounded photo uploads for authenticated admin moderation only.
+    # Bounded photo uploads for authenticated hosts and legacy admin tooling.
+    location /api/host/garages {
+        client_max_body_size 8m;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
+        proxy_read_timeout 30s;
+    }
     location /api/staff/garages/ {
         client_max_body_size 8m;
         proxy_pass http://127.0.0.1:3000;
@@ -106,7 +110,7 @@ docker run -d --name garageshare --restart unless-stopped \
   garageshare
 ```
 
-Keep Nginx in front and configure the exact trusted proxy IP only after verifying it in your network. To moderate inside the container, copy an accurate photo to a temporary container path, then run `docker exec garageshare node server/admin.mjs pending` and `docker exec garageshare node server/admin.mjs approve LISTING_ID /tmp/photo.webp`.
+Keep Nginx in front and configure the exact trusted proxy IP only after verifying it in your network. Grant your operator account administrator access with the CLI inside the container, then use `/admin.html` to review the photos hosts submit. Legacy CLI approval remains available.
 
 ## Enable Google sign-in
 
@@ -140,7 +144,7 @@ npm run admin -- staff-grant YOUR_ACCOUNT_EMAIL admin
 npm run admin -- staff-list
 ```
 
-Sign in again at `/admin.html` on your GarageShare domain. Administrators can assign tickets to any staff member. Use the `support` role for agents who reply, update ticket status and take unassigned tickets. To remove access, run `npm run admin -- staff-revoke ACCOUNT_EMAIL`. Granting or revoking a role ends that account's existing sessions. Administrators can also review and approve listings with a photo, reject pending listings, and archive approved listings from the Garage moderation section of the same dashboard. Support staff cannot access listing moderation. See ADMIN-MODERATION.md for the existing-VPS update steps.
+Sign in again at `/admin.html` on your GarageShare domain. Administrators can assign tickets to any staff member. Use the `support` role for agents who reply, update ticket status and take unassigned tickets. To remove access, run `npm run admin -- staff-revoke ACCOUNT_EMAIL`. Granting or revoking a role ends that account's existing sessions. Administrators can also review and approve the photos hosts submit, reject pending listings, and archive approved listings from the Garage moderation section of the same dashboard. Support staff cannot access listing moderation. Hosts submit the photo from their listing form or Host → My garages → Add/Change photo. Admins review that stored photo instead of uploading another. See HOST-PHOTOS.md for VPS and Android updates.
 
 ## Prepare a public Android release
 

@@ -120,6 +120,8 @@ For the remaining VPS, Android Studio and Play Console steps, follow [the live r
 
 Administrators have an overview with live totals and percentages, garage add/edit/review, account and role management, reservations, and support at `/admin.html`. See the [administration guide](docs/ADMINISTRATION.md). See [admin moderation setup and VPS update steps](docs/ADMIN-MODERATION.md), including the Nginx upload limit and one-time admin role assignment.
 
+Hosts upload their own garage photo when creating a listing or from **Host → My garages → Add/Change photo**. Administrators review and approve the submitted image. See [host photo deployment and Android update steps](docs/HOST-PHOTOS.md).
+
 ## Validation and limits
 
 Run `npm test`. The suite checks time billing, concurrent overlaps, authoritative prices, idempotency, authorization, offer transitions, CSRF/origins, entrance privacy, database overlap triggers, and session revocation. See `docs/VALIDATION.md` for results from this delivery.

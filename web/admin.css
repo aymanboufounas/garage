@@ -209,3 +209,5 @@ progress.admin-progress { appearance: none; border: 0; background: #e9f0ec; }
 progress.admin-progress::-webkit-progress-bar { background: #e9f0ec; border-radius: 8px; }
 progress.admin-progress::-webkit-progress-value { background: #579b79; border-radius: 8px; }
 progress.admin-progress::-moz-progress-bar { background: #579b79; border-radius: 8px; }
+.moderation-submitted-photo { margin: 0; }
+.moderation-submitted-photo figcaption { color: #748279; font-size: 11px; line-height: 1.7; margin: 8px 0 16px; }

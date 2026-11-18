@@ -30,9 +30,7 @@ Recent activity lists the latest recorded actions and their operator/date.
 Select a status and a garage in the compact queue; its details appear alongside.
 The search box filters the current page and is labeled accordingly. Pages hold
 up to 25 listings. Review the owner, private entrance, description, dimensions,
-prices and photo before approving. A photo must accurately show the garage and
-be authorized. JPEG, PNG and WebP inputs are converted to bounded, metadata-free
-WebP. Upload failures retain the selected file and review form.
+prices and photo before approving. The host uploads an accurate authorized photo in the listing form or from Host → My garages. The admin reviews the stored image without choosing a file. Missing photos block approval. If a host replaces the photo during review, the admin must refresh and review the new image. Host JPEG, PNG and WebP inputs are converted to bounded, metadata-free WebP; failures retain the host’s form and selected image.
 
 Use Add garage to create a listing for an existing account. Find the owner by
 email/name, select the account, fill the fields and save. New listings always
@@ -109,9 +107,7 @@ python3 scripts/configure-admin-nginx.py
 The first command prints the proposed site. The second backs up the existing
 site, inserts an 8 MB limit only for `/api/staff/garages/`, checks `nginx -t`, and
 reloads Nginx. It preserves Certbot HTTPS/redirect directives and restores the
-backup on validation failure. It refuses ambiguous configurations, a wrong
-hostname or an already-existing upload location rather than replacing them. If
-the location already exists, review it using ADMIN-MODERATION.md instead. The
+backup on validation failure. It refuses ambiguous configurations, a wrong hostname or conflicting existing limits. It preserves an existing correct admin upload location and adds the host upload location; when both are configured it makes no changes. The
 backend still enforces its own admin-only photo and request size limits.
 
 Initial role assignment remains a one-time server operation. See
@@ -156,3 +152,5 @@ NODE_PATH=../garage-qa-tools/node_modules BROWSER_EXECUTABLE=/usr/bin/chromium n
 This deliberately primes an old cached translation catalog, verifies that it
 lacks `adminNavigation`, and opens the updated dashboard without clearing that
 cache. It checks administrator navigation and French/Arabic translations.
+
+For the current host-owned photo workflow, including existing listings and Android file-picker updates, see [Host photos](HOST-PHOTOS.md).

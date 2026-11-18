@@ -1,5 +1,5 @@
 import {endAt} from './icons.js';
-import {language,localizedField} from './i18n.js';
+import {language,localizedField,t} from './i18n.js';
 import { quoteChatOpen, reservationChatOpen } from './chat-policy.js';
 const emptyPreview=()=>({garages:[],reservations:[],deals:[],tickets:[],chats:[],blocks:[],reviews:[]});
 let csrf='', isDemo=false, preview=emptyPreview(), samples=[];
@@ -9,7 +9,7 @@ const save=()=>{try{localStorage.setItem(key,JSON.stringify(preview));}catch{thr
 export async function api(path,method='GET',data) {
  const result=await fetch(`/api${path}`,{method,credentials:'same-origin',headers:{'Accept-Language':language(),...(method==='POST'?{'Content-Type':'application/json','X-CSRF-Token':csrf}:{})},body:data?JSON.stringify(data):undefined});
  let value;try{value=await result.json();}catch{
-  const error=new Error(result.status===413?'Photo upload rejected by the web server. Enable the admin upload limit in Nginx.':
+  const error=new Error(result.status===413?(path.startsWith('/host/garages')?t('hostPhotoUploadLimit'):'Photo upload rejected by the web server. Enable the admin upload limit in Nginx.'):
    result.status===502||result.status===503||result.status===504?'Service unavailable. Please try again.':'The server could not respond. Try again.');
   error.status=result.status;throw error;
  }
@@ -183,8 +183,25 @@ export const repo={
  async listings(){return isDemo?preview.garages:(await api('/host/garages')).garages;},
  async createListing(data){
   if(!isDemo)return api('/host/garages','POST',data);
-  const garage={...data,id:uid(),owner_id:demoUser.id,owner_name:demoUser.name,status:'pending',image:'/assets/garage-placeholder.svg',is_demo:true};
-  preview.garages.push(garage);save();return garage;
+  const {photo_base64,...details}=data;
+  if(typeof photo_base64!=='string'||!photo_base64)throw new Error('Choose a valid JPEG, PNG or WebP photo up to 10 MB.');
+  const garage={...details,id:uid(),owner_id:demoUser.id,owner_name:demoUser.name,status:'pending',image:'data:image/webp;base64,'+photo_base64,is_demo:true};
+  preview.garages.push(garage);
+  try{save();}catch(error){preview.garages.pop();throw error;}
+  return garage;
+ },
+ async updateListingPhoto(gid,data){
+  if(!isDemo)return api(`/host/garages/${encodeURIComponent(gid)}/photo`,'POST',data);
+  const garage=preview.garages.find(g=>g.id===gid&&g.owner_id===demoUser.id);
+  if(!garage)throw new Error('Listing not found.');
+  if(garage.image!==data.expected_image||garage.status!==data.expected_status)throw new Error('Listing changed. Refresh and try again.');
+  if(garage.status==='archived')throw new Error('This listing cannot be changed in its current status.');
+  if(preview.reservations.some(r=>r.garage_id===gid&&r.status==='confirmed'&&r.ends_at>Date.now()))throw new Error('Resolve upcoming reservations before changing this photo.');
+  if(typeof data.photo_base64!=='string'||!data.photo_base64)throw new Error('Choose a valid JPEG, PNG or WebP photo up to 10 MB.');
+  const previous={image:garage.image,status:garage.status};
+  garage.image='data:image/webp;base64,'+data.photo_base64;garage.status='pending';
+  try{save();}catch(error){Object.assign(garage,previous);throw error;}
+  return {id:gid,status:garage.status,image:garage.image};
  },
  async approveDemo(gid){if(!isDemo)return;const g=preview.garages.find(g=>g.id===gid);if(g){g.status='approved';save();}},
  async reservations(host=false){

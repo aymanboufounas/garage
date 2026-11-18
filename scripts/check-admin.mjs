@@ -58,12 +58,13 @@ try {
  await page.locator('[data-admin-view=reservations]').click();await page.locator('[data-management-action=cancel]').waitFor();await page.locator('[data-management-action=cancel]').click();await page.locator('[name=reason]').fill('Customer requested cancellation in browser QA.');await page.locator('[data-reservation-cancel] [type=submit]').click();await page.locator('.admin-status-cancelled').waitFor();assert.equal(app.db.prepare('SELECT status FROM reservations WHERE id=?').get(booking.id).status,'cancelled');assert.equal(app.db.prepare('SELECT reason FROM admin_reservation_decisions WHERE reservation_id=?').get(booking.id).reason,'Customer requested cancellation in browser QA.');
  await page.locator('[data-admin-view=support]').click();await page.locator('#staff-filter-form').waitFor();
  await page.locator('[data-admin-view=garages]').click();await page.locator('.moderation-card').waitFor();
- // Simulate Nginx's non-JSON 413 response, which used to be hidden as a generic error.
- await page.route('**/api/staff/garages/*/approve',route=>route.fulfill({status:413,contentType:'text/html',body:'<h1>413 Request Entity Too Large</h1>'}));
- await page.locator('[name=photo]').setInputFiles(join(project,'web/assets/garages/garage-01.webp'));await page.locator('[name=confirmed]').check();await page.locator('.moderation-form [type=submit]').click();await page.waitForFunction(()=>document.querySelector('#moderation-notice')?.textContent.includes('upload limit'));assert.equal(await page.locator('[name=photo]').evaluate(el=>el.files.length),1);assert.equal(app.db.prepare('SELECT status FROM garages WHERE id=?').get(pending.id).status,'pending');
+ // The host owns photo upload. Admin cannot publish an incomplete draft.
+ assert.equal(await page.locator('#moderation-detail input[type=file]').count(),0);
+ assert.equal(await page.locator('.moderation-form [type=submit]').isDisabled(),true);
+ assert.equal(app.db.prepare('SELECT status FROM garages WHERE id=?').get(pending.id).status,'pending');
  await page.setViewportSize({width:390,height:844});await page.locator('[data-admin-view=overview]').click();await page.locator('.admin-metric').first().waitFor();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.screenshot({path:join(project,'test-results/admin-overview-mobile.png'),fullPage:true});
  await page.locator('#staff-language').selectOption('ar');await page.locator('.admin-metric').first().waitFor();assert.equal(await page.locator('html').getAttribute('dir'),'rtl');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
- console.log('PASS: overview percentages, account pagination/create/edit/role/remove, recorded cancellation, support navigation, actionable HTML413 preserving photo, mobile and Arabic RTL');
+ console.log('PASS: overview percentages, account pagination/create/edit/role/remove, recorded cancellation, support navigation, admin missing-photo approval blocked, mobile and Arabic RTL');
 } catch(error) {console.error(await page?.locator('body').innerText());throw error;}
 finally {if(browser)await browser.close();await new Promise(r=>app.server.close(r));app.db.close();rmSync(web,{recursive:true,force:true});}

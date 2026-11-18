@@ -84,6 +84,8 @@ const execFile=require('node:util').promisify(require('node:child_process').exec
   await form.locator('[name="height_cm"]').fill('230');await form.locator('[name="description"]').fill('A spacious private covered garage for a car or SUV.');
   await page.locator('#picker-map').click({position:{x:140,y:70}});
   check('Host entrance is selected on the map',Boolean(await form.locator('[name="latitude"]').inputValue()));
+  await form.locator('[name="garage_photo"]').setInputFiles(path.resolve(__dirname,'../web/assets/garages/garage-01.webp'));
+  await form.locator('[name="photo_consent"]').check();
   await form.locator('[type="submit"]').click();await page.getByText('In review',{exact:true}).waitFor();
   check('Host listing stays pending review',await page.locator('.status.pending').count()===1);
   check('User-supplied markup is displayed as text',await page.locator('img[src="x"]').count()===0);

@@ -10,6 +10,7 @@ import { staffRole, supportRoute } from './support.mjs';
 import { requireModerator, moderationRoute } from './moderation.mjs';
 import { adminOperationsRoute } from './admin-operations.mjs';
 import { createWebAssets } from './web-assets.mjs';
+import { decodeListingPhoto, requireHostPhotoListing, submitHostPhoto, withListingPhoto } from './listing-photos.mjs';
 import { chatRoute } from './chat.mjs';
 import { browseGarages, calendarRoute } from './availability.mjs';
 import { garageReviews, reviewsRoute } from './reviews.mjs';
@@ -181,19 +182,29 @@ export function makeApp(options={}) {
         if (/^\/api\/(?:support|staff)\//.test(path)) {
           return reply(res, supportRoute(db, user, req.method, path, url.searchParams, req.method === 'POST' ? await body(req) : {}));
         }
+        const hostPhoto = path.match(/^\/api\/host\/garages\/([a-f0-9]{32})\/photo$/);
+        if(req.method==='POST'&&hostPhoto) {
+          requireHostPhotoListing(db, user, hostPhoto[1]);
+          limit(db, `listing-photo:${user.id}`, 10, HOUR);
+          return reply(res, submitHostPhoto(db, web, user, hostPhoto[1], await body(req, 7*1024*1024)));
+        }
         if(req.method==='GET'&&path==='/api/host/garages') return reply(res,{garages:db.prepare('SELECT * FROM garages WHERE owner_id=? ORDER BY created_at DESC').all(user.id)});
         if(req.method==='POST'&&path==='/api/host/garages') {
           limit(db,`listing:${user.id}`,10,HOUR);
-          const data=await body(req),name=text(data,'name',3,100),city=text(data,'city',2,60),area=text(data,'area',2,100),address=text(data,'address',5,220),description=text(data,'description',10,1500);
+          const data=await body(req,7*1024*1024),name=text(data,'name',3,100),city=text(data,'city',2,60),area=text(data,'area',2,100),address=text(data,'address',5,220),description=text(data,'description',10,1500);
           if(!cities.includes(city)) throw new ApiError('Choose a supported city.');
           const hourly=integer(data.hourly_cents,100,100000,'hourly price'),monthly=integer(data.monthly_cents,10000,10000000,'monthly price'),height=integer(data.height_cm,140,500,'entrance height in cm');
           if(!['compact','suv','van'].includes(data.vehicle_size)||typeof data.covered!=='boolean') throw new ApiError('Check vehicle size and cover.');
           if(typeof data.latitude!=='number'||!Number.isFinite(data.latitude)||data.latitude<27.5||data.latitude>36||typeof data.longitude!=='number'||!Number.isFinite(data.longitude)||data.longitude< -14||data.longitude> -0.8) throw new ApiError('Place your garage pin inside Morocco.');
           // No arbitrary external image URLs, SVG uploads, tracking images or server-side fetching.
-          // A moderation-approved photo can be assigned through the admin dashboard or CLI.
-          const gid=id();
-          db.prepare('INSERT INTO garages VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(gid,user.id,name,city,area,address,data.latitude,data.longitude,hourly,monthly,height,data.vehicle_size,data.covered?1:0,description,'/assets/garage-placeholder.svg','pending',Date.now());
-          audit(db,user.id,'listing_submitted',gid);return reply(res,{id:gid,status:'pending'},201);
+          // Hosts own their photos; all uploads remain pending until administrator review.
+          const gid=id(),bytes=Object.hasOwn(data,'photo_base64')?decodeListingPhoto(data.photo_base64):null;
+          const result=withListingPhoto(web,bytes,uploadedImage=>transaction(db,()=>{
+            const image=uploadedImage||'/assets/garage-placeholder.svg';
+            db.prepare('INSERT INTO garages VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(gid,user.id,name,city,area,address,data.latitude,data.longitude,hourly,monthly,height,data.vehicle_size,data.covered?1:0,description,image,'pending',Date.now());
+            audit(db,user.id,'listing_submitted',gid);return {id:gid,status:'pending',image};
+          }));
+          return reply(res,result,201);
         }
         if(req.method==='GET'&&['/api/reservations','/api/host/reservations'].includes(path)) {
           const host=path.includes('/host/');
@@ -280,7 +291,7 @@ export function makeApp(options={}) {
       res.writeHead(200,{'Content-Type':MIME[extname(file)],'Cache-Control':extname(file)==='.html'?'no-store':['.js','.mjs','.css'].includes(extname(file))?'no-cache':'public, max-age=3600'});
       if(req.method==='HEAD') return res.end();
       const contents=await readFile(file);
-      res.end(decoded==='/admin.html'?webAssets.rewriteAdminHtml(contents.toString('utf8')):contents);
+      res.end(['/', '/index.html', '/admin.html'].includes(decoded)?webAssets.rewriteAdminHtml(contents.toString('utf8')):contents);
     } catch(error) {
       if(res.headersSent) { res.end();return; }
       const overlap=String(error.message).includes('reservation_overlap');

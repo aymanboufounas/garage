@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add bounded admin photo uploads to the existing GarageShare Nginx site.
+"""Add bounded host and admin photo uploads to the existing GarageShare Nginx site.
 Preserves Certbot directives. Backs up and rolls back on nginx validation failure.
 """
 import argparse
@@ -14,14 +14,25 @@ import sys
 def configured_site(contents):
     if not re.search(r'\bserver_name\s+garageshare\.xyz\s*;', contents):
         raise ValueError('Expected the existing garageshare.xyz site. No changes made.')
-    if re.search(r'\blocation\s+/api/staff/garages/\s*\{', contents):
-        raise ValueError('An admin upload location already exists. Review its client_max_body_size (8m); no changes made.')
+    required = ['/api/staff/garages/', '/api/host/garages']
+    missing = []
+    for route in required:
+        existing = re.search(r'\blocation\s+' + re.escape(route) + r'\s*\{([^}]*)\}', contents)
+        if existing:
+            if not re.search(r'\bclient_max_body_size\s+8m\s*;', existing.group(1)):
+                raise ValueError(f'Existing {route} upload location needs review (expected 8m). No changes made.')
+        else:
+            missing.append(route)
+    if not missing:
+        return contents
     locations = list(re.finditer(r'(?m)^([ \t]*)location\s+/\s*\{', contents))
     if len(locations) != 1:
         raise ValueError('Expected exactly one location / block. Review the site manually; no changes made.')
     found = locations[0]
     indent = found.group(1)
-    block = '''location /api/staff/garages/ {
+    blocks = []
+    for route in missing:
+        block = f'''location {route} {{
     client_max_body_size 8m;
     proxy_pass http://127.0.0.1:3000;
     proxy_http_version 1.1;
@@ -29,10 +40,10 @@ def configured_site(contents):
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header Connection "";
     proxy_read_timeout 30s;
-}
+}}
 '''
-    block = '\n'.join(indent + line if line else line for line in block.split('\n'))
-    return contents[:found.start()] + block + contents[found.start():]
+        blocks.append('\n'.join(indent + line if line else line for line in block.split('\n')))
+    return contents[:found.start()] + ''.join(blocks) + contents[found.start():]
 
 
 def main():
@@ -41,9 +52,13 @@ def main():
     parser.add_argument('--check', action='store_true', help='Print the proposed site without writing or reloading')
     args = parser.parse_args()
     site = Path(args.site).resolve(strict=True)
-    updated = configured_site(site.read_text())
+    original = site.read_text()
+    updated = configured_site(original)
     if args.check:
         print(updated)
+        return
+    if updated == original:
+        print('Host and admin upload routes are already configured; no changes needed.')
         return
     subprocess.run(['nginx', '-t'], check=True)
     backup = site.with_name(site.name + '.backup-' + datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f'))
@@ -56,7 +71,7 @@ def main():
         shutil.copy2(backup, site)
         subprocess.run(['nginx', '-t'], check=False)
         raise
-    print(f'Admin upload route enabled. Original configuration: {backup}')
+    print(f'Host and admin upload routes enabled. Original configuration: {backup}')
 
 
 if __name__ == '__main__':

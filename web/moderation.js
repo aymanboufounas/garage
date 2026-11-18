@@ -2,51 +2,11 @@ import { esc } from './icons.js';
 import { t, language } from './i18n.js';
 import { localizeError } from './errors.js';
 
-// Canvas encoders may retain a standard color profile. Remove ancillary metadata
-// chunks and their VP8X flags before upload, while preserving the image payload.
-export function stripWebpMetadata(buffer) {
-  const bytes = new Uint8Array(buffer), view = new DataView(buffer);
-  const chunks = [];
-  for (let offset = 12; offset < bytes.length;) {
-    const length = view.getUint32(offset + 4, true);
-    const next = offset + 8 + length + (length % 2);
-    const kind = String.fromCharCode(...bytes.slice(offset, offset + 4));
-    if (!['ICCP', 'EXIF', 'XMP '].includes(kind)) {
-      const chunk = bytes.slice(offset, next);
-      if (kind === 'VP8X') chunk[8] &= ~(0x20 | 0x08 | 0x04);
-      chunks.push(chunk);
-    }
-    offset = next;
-  }
-  const header = bytes.slice(0, 12);
-  new DataView(header.buffer).setUint32(4, 4 + chunks.reduce((sum, chunk) => sum + chunk.length, 0), true);
-  return new Blob([header, ...chunks], {type:'image/webp'});
-}
-
-// Re-encode in the browser to remove metadata and bound the uploaded image size.
-export async function prepareModerationPhoto(file) {
-  if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10*1024*1024) throw new Error(t('moderationPhotoError'));
-  const bitmap = await createImageBitmap(file);
-  try {
-    const ratio = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
-    canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.85));
-    if (!blob || blob.type !== 'image/webp' || blob.size > 5*1024*1024) throw new Error(t('moderationPhotoError'));
-    blob = stripWebpMetadata(await blob.arrayBuffer());
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result).split(',')[1]);
-      reader.onerror = () => reject(new Error(t('moderationPhotoError')));
-      reader.readAsDataURL(blob);
-    });
-  } finally { bitmap.close(); }
-}
+// Compatibility exports for older QA helpers; admins review the host photo in this view.
+export { stripWebpMetadata, prepareModerationPhoto } from './photo-upload.js';
 
 export function mountModeration(root, api) {
-  let offset = 0, revision = 0, busy = false, rows = [], selected = null, mode = 'details', hasMore = false;
+  let offset = 0, revision = 0, busy = false, rows = [], selected = null, mode = 'details', hasMore = false, photoReady = false;
   const statuses = ['pending','approved','rejected','archived'];
   const cities = ['Casablanca','Rabat','Marrakech','Tangier','Nador','Fes','Meknes'];
   const h = (key, params) => esc(t(key, params));
@@ -69,9 +29,12 @@ export function mountModeration(root, api) {
   function message(value, error=false) { notice.textContent=value; notice.hidden=!value; notice.classList.toggle('warning',error); }
   function showError(error) { message(error.status===413?t('moderationUploadLimit'):localizeError(error.message,language()),true); }
   function current() { return rows.find(g=>g.id===selected); }
+  function hasHostPhoto(g) { return typeof g?.image === 'string' && /^\/assets\/host-photos\/[a-f0-9]{32}\.webp$/.test(g.image); }
   function navigation() {
     root.querySelector('[data-mod-action="previous"]').disabled=busy||offset===0;
     root.querySelector('[data-mod-action="next"]').disabled=busy||!hasMore;
+    const approve=root.querySelector('.moderation-form [type="submit"]');
+    if(approve)approve.disabled=busy||!hasHostPhoto(current())||!photoReady;
   }
   function renderRows() {
     const query=search.value.trim().toLocaleLowerCase();
@@ -84,25 +47,32 @@ export function mountModeration(root, api) {
     navigation();
   }
   function renderDetails() {
-    const g=current();
+    const g=current();photoReady=false;
     if(!g){detail.innerHTML=`<div class="admin-empty">${h('moderationSelect')}</div>`;return;}
     detail.innerHTML=`<article class="moderation-card">
       <div class="admin-section-heading"><div><span class="admin-badge status-${esc(g.status)}">${h('moderation_'+g.status)}</span><h3>${esc(g.name)}</h3></div>
       <button type="button" class="secondary" data-mod-action="edit">${h('moderationEdit')}</button></div>
-      ${g.image?.startsWith('/assets/host-photos/')?`<img class="moderation-current-photo" src="${esc(g.image)}" alt="${esc(g.name)}">`:''}
+      ${hasHostPhoto(g)?`<figure class="moderation-submitted-photo"><img class="moderation-current-photo" src="${esc(g.image)}" alt="${h('moderationHostPhoto')}"><figcaption class="small">${h('moderationHostPhoto')}</figcaption></figure>`:`<p class="admin-notice warning">${h('moderationWaitingPhoto')}</p>`}
       <div class="moderation-facts"><div><h4>${h('moderationOwner')}</h4><p>${esc(g.owner_name)}<br><bdi>${esc(g.owner_email)}</bdi></p></div>
       <div><h4>${h('moderationPrices')}</h4><p>${esc(money(g.hourly_cents))} / ${h('hour')}<br>${esc(money(g.monthly_cents))} / ${h('month')}</p></div>
       <div><h4>${h('moderationEntrance')}</h4><p>${esc(g.city)} · ${esc(g.area)}<br>${esc(g.address)}<br><bdi>${esc(g.latitude)}, ${esc(g.longitude)}</bdi></p></div>
       <div><h4>${h('moderationSpecifications')}</h4><p>${h('height')}: ${esc(g.height_cm)} cm<br>${h(g.vehicle_size)} · ${h(g.covered?'covered':'outdoor')}</p></div></div>
       <p class="moderation-description">${esc(g.description)}</p>
       ${g.status==='pending'?`<section class="moderation-review"><h4>${h('moderationReviewPhoto')}</h4><p class="small">${h('moderationPhotoHint')}</p>
-        <form class="form moderation-form" data-garage="${esc(g.id)}"><label class="field">${h('moderationPhoto')}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label>
-        <img class="moderation-photo" alt="${h('moderationPreview')}" hidden>
-        <label class="staff-checkbox"><input name="confirmed" type="checkbox" required><span>${h('moderationConfirm')}</span></label>
-        <div class="moderation-actions"><button type="submit" class="primary">${h('moderationApprove')}</button>
+        <form class="form moderation-form" data-garage="${esc(g.id)}" data-image="${esc(g.image)}">
+        <label class="staff-checkbox"><input name="confirmed" type="checkbox" required ${hasHostPhoto(g)?'':'disabled'}><span>${h('moderationConfirm')}</span></label>
+        <div class="moderation-actions"><button type="submit" class="primary" disabled>${h('moderationApprove')}</button>
         <button type="button" class="secondary danger" data-mod-action="reject" data-id="${esc(g.id)}">${h('moderationReject')}</button></div></form></section>`:''}
       ${g.status==='approved'?`<button type="button" class="secondary danger" data-mod-action="archive" data-id="${esc(g.id)}">${h('moderationArchive')}</button>`:''}
     </article>`;
+    const photo=detail.querySelector('.moderation-current-photo');
+    if(photo){
+      const loaded=()=>{if(current()?.id===g.id&&detail.contains(photo)){photoReady=photo.naturalWidth>0;navigation();}};
+      photo.addEventListener('load',loaded,{once:true});
+      photo.addEventListener('error',()=>{if(detail.contains(photo)){photoReady=false;message(t('moderationHostPhotoFailed'),true);navigation();}},{once:true});
+      if(photo.complete&&photo.naturalWidth>0)loaded();
+    }
+    navigation();
   }
   function field(name,label,value='',type='text',extra='') {
     return `<label class="field">${h(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${extra} required></label>`;
@@ -159,13 +129,6 @@ export function mountModeration(root, api) {
       await load();if(['reject','archive'].includes(action))message(t('moderationSaved'));
     });
   });
-  root.addEventListener('change',event=>{
-    if(event.target.name!=='photo')return;
-    const input=event.target,image=input.form.querySelector('img');image.hidden=true;image.removeAttribute('src');
-    const file=input.files[0];if(file&&file.size<=10*1024*1024&&['image/jpeg','image/png','image/webp'].includes(file.type)){
-      const reader=new FileReader();reader.onload=()=>{if(input.files[0]===file){image.src=reader.result;image.hidden=false;}};reader.readAsDataURL(file);
-    }
-  });
   root.addEventListener('submit',event=>{
     const form=event.target;if(!form.matches('.moderation-form,.moderation-editor,#moderation-owner-search'))return;
     event.preventDefault();event.stopPropagation();if(!form.reportValidity())return;
@@ -177,9 +140,16 @@ export function mountModeration(root, api) {
         if(!result.users.length)message(t('moderationOwnerEmpty'));else message('');return;
       }
       if(form.matches('.moderation-form')){
-        let photo_base64;
-        try {photo_base64=await prepareModerationPhoto(form.elements.photo.files[0]);}catch {throw new Error(t('moderationPhotoFailed'));}
-        await api(`/staff/garages/${form.dataset.garage}/approve`,'POST',{expected_status:'pending',confirmed:true,photo_base64});
+        if(!hasHostPhoto(current())||!photoReady)throw new Error(t('moderationWaitingPhoto'));
+        try {
+          await api(`/staff/garages/${form.dataset.garage}/approve`,'POST',{expected_status:'pending',confirmed:true,expected_image:form.dataset.image});
+        } catch(error) {
+          if(error.status===409){
+            photoReady=false;form.elements.confirmed.checked=false;
+            error.message=localizeError(error.message,language())+' '+t('moderationRefreshReview');
+          }
+          throw error;
+        }
         await load();message(t('moderationSaved'));return;
       }
       const values=Object.fromEntries(new FormData(form));
