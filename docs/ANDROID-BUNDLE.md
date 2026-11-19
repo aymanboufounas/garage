@@ -1,16 +1,15 @@
 # GarageShare Android App Bundle
 
-[Download GarageShare 0.7.1 unsigned AAB](https://github.com/aymanboufounas/garage/raw/refs/heads/main/dist/GarageShare-0.7.1-unsigned.aab)
+[Download GarageShare 0.7.2 unsigned AAB](https://github.com/aymanboufounas/garage/raw/refs/heads/feature/play-compliance/dist/GarageShare-0.7.2-unsigned.aab)
 
 This is an **unsigned** release Android App Bundle, not an APK. It cannot be
 uploaded to Google Play until signed with your upload key. No signing key or
 password is included. Its release settings are:
 
 - Application ID: `com.garageshare.app` (the live app, not `.preview`).
-- Version: `0.7.1`, versionCode `9`, target SDK `36`, minimum SDK `26`.
+- Version: `0.7.2`, versionCode `10`, target SDK `36`, minimum SDK `26`.
 - Backend: `https://garageshare.xyz`.
-- Source commit: `1a5c657947e9d0c1ddfd8c5fca2e29ed66af7dbd`.
-- SHA256: `ce6346b190319f979d2735db391989e231fb85300b0df41f1eb43ce3cb6dd193`.
+- SHA256: `9d998d3246ee38a137d8fcf66a38f968c5546694ff6c7a2e618f9e12ebc00de4`.
 
 The Gradle release build (including R8 and release lint) and bundletool validation
 passed. The manifest, ZIP integrity, unsigned state and live origin were checked.
@@ -42,8 +41,8 @@ one is not an automatic replacement for that key.
 ### 2. Sign the AAB
 
 ```powershell
-$unsignedBundle = "$env:USERPROFILE\Downloads\GarageShare-0.7.1-unsigned.aab"
-$signedBundle = "$env:USERPROFILE\Downloads\GarageShare-0.7.1-signed.aab"
+$unsignedBundle = "$env:USERPROFILE\Downloads\GarageShare-0.7.2-unsigned.aab"
+$signedBundle = "$env:USERPROFILE\Downloads\GarageShare-0.7.2-signed.aab"
 & "$studioTools\jarsigner.exe" -keystore $uploadKey -signedjar $signedBundle -sigalg SHA256withRSA -digestalg SHA-256 $unsignedBundle garageshare
 ```
 
@@ -57,9 +56,9 @@ leaves the downloaded unsigned file unchanged.
 ```
 
 Confirm that it reports `jar verified`. Keep the signing key private; upload only
-`GarageShare-0.7.1-signed.aab` to Play Console's internal testing track. Complete
+`GarageShare-0.7.2-signed.aab` to Play Console's internal testing track. Complete
 the account-specific Play Console release requirements separately. VersionCode
-9 must be higher than any version already uploaded for this application; if not,
+10 must be higher than any version already uploaded for this application; if not,
 increase the project's versionCode and build a new bundle before signing.
 
 ## Alternative: generate and sign in Android Studio
