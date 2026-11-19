@@ -4,14 +4,14 @@ if (serverUrl && !(serverUrl ==~ /^https:\/\/[a-zA-Z0-9.-]+(?::443)?\/?$/)) {
     throw new GradleException('serverUrl must be an HTTPS origin, for example https://app.example.com')
 }
 android {
-    namespace 'ma.garageshare.app'
+    namespace 'com.garageshare.app'
     compileSdk 36
     defaultConfig {
-        applicationId 'ma.garageshare.app'
+        applicationId 'com.garageshare.app'
         minSdk 26
         targetSdk 36
-        versionCode 9
-        versionName '0.7.1'
+        versionCode 10
+        versionName '0.7.2'
         manifestPlaceholders.googleAppLinkHost = serverUrl ? java.net.URI.create(serverUrl).host : 'preview.invalid'
         buildConfigField 'String', 'SERVER_URL', '"' + serverUrl + '"'
     }

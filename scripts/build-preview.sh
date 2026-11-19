@@ -12,14 +12,15 @@ node "$task_root/scripts/sync-android.mjs"
 python3 - "$task_root" "$task_build" <<'PY'
 import pathlib,sys,xml.etree.ElementTree as E
 root,build=map(pathlib.Path,sys.argv[1:]);ns='{http://schemas.android.com/apk/res/android}'
-tree=E.parse(root/'android/app/src/main/AndroidManifest.xml');manifest=tree.getroot();manifest.set('package','ma.garageshare.app.preview')
-app=manifest.find('application');app.set(ns+'debuggable','true');activity=app.find('activity');activity.set(ns+'name','ma.garageshare.app.MainActivity')
+tree=E.parse(root/'android/app/src/main/AndroidManifest.xml');manifest=tree.getroot();manifest.set('package','com.garageshare.app.preview')
+app=manifest.find('application');app.set(ns+'debuggable','true');activity=app.find('activity');activity.set(ns+'name','com.garageshare.app.MainActivity')
 for intent_filter in activity.findall('intent-filter'):
  if intent_filter.get(ns+'autoVerify')=='true': activity.remove(intent_filter)
 E.register_namespace('android',ns[1:-1]);tree.write(build/'AndroidManifest.xml',encoding='utf-8',xml_declaration=True)
-(build/'generated/ma/garageshare/app/BuildConfig.java').write_text('package ma.garageshare.app; public final class BuildConfig { public static final boolean DEBUG=true; public static final String SERVER_URL=""; }')
+(build/'generated/com/garageshare/app/BuildConfig.java').parent.mkdir(parents=True,exist_ok=True)
+(build/'generated/com/garageshare/app/BuildConfig.java').write_text('package com.garageshare.app; public final class BuildConfig { public static final boolean DEBUG=true; public static final String SERVER_URL=""; }')
 PY
-"$task_tools/aapt" package -f -m --auto-add-overlay --custom-package ma.garageshare.app \
+"$task_tools/aapt" package -f -m --auto-add-overlay --custom-package com.garageshare.app \
   -J "$task_build/generated" -M "$task_build/AndroidManifest.xml" \
   -S "$task_root/android/app/src/main/res" -A "$task_root/android/app/src/main/assets" \
   -I "$task_platform" --min-sdk-version 26 --target-sdk-version 36 \

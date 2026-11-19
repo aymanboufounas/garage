@@ -80,7 +80,7 @@ serverUrl=https://garageshare.xyz
 ```
 
 Choose a USB-debugging phone and click Run. This debug installation uses
-`ma.garageshare.app.preview`, but now connects to the real database. It is not
+`com.garageshare.app.preview`, but now connects to the real database. It is not
 the offline sample preview; use test accounts and avoid real commitments.
 Test login/logout, back navigation, denied/allowed location, network loss,
 messages, and bookings across two devices. Persisted records should remain
@@ -125,7 +125,7 @@ Confirm HTTPS and real-device flows before building the release. In Android Stud
    repository. Back up the keystore and passwords securely; do not commit them.
 3. Choose the `release` build and generate the signed `.aab`. Use the output
    location Android Studio reports. A release requires a nonempty HTTPS serverUrl.
-4. Keep application ID `ma.garageshare.app` if it is your intended Play identity.
+4. Keep application ID `com.garageshare.app` if it is your intended Play identity.
    The debug `.preview` ID is a different app. Confirm ownership/availability in
    Play Console before the first release.
 5. Current versionCode is 8. If Play has already accepted 8 or higher for this

@@ -158,7 +158,7 @@ test('Android returns through its app link and the browser cannot redeem the pro
   assert.equal((await native.call('/api/config')).json.google_android, true);
   const links = await browser.call('/.well-known/assetlinks.json');
   assert.deepEqual(links.json, [{ relation: ['delegate_permission/common.handle_all_urls'],
-    target: { namespace: 'android_app', package_name: 'ma.garageshare.app', sha256_cert_fingerprints: [CERT] } }]);
+    target: { namespace: 'android_app', package_name: 'com.garageshare.app', sha256_cert_fingerprints: [CERT] } }]);
   const launch = await native.prepare('android');
   const result = await approve(browser, launch);
   assert.equal(result.status, 200);

@@ -6,7 +6,7 @@ This is an **unsigned** release Android App Bundle, not an APK. It cannot be
 uploaded to Google Play until signed with your upload key. No signing key or
 password is included. Its release settings are:
 
-- Application ID: `ma.garageshare.app` (the live app, not `.preview`).
+- Application ID: `com.garageshare.app` (the live app, not `.preview`).
 - Version: `0.7.1`, versionCode `9`, target SDK `36`, minimum SDK `26`.
 - Backend: `https://garageshare.xyz`.
 - Source commit: `1a5c657947e9d0c1ddfd8c5fca2e29ed66af7dbd`.

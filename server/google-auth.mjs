@@ -15,8 +15,8 @@ const secret = () => randomBytes(32).toString('hex');
 
 function androidAssociations(config) {
   return [
-    ['ma.garageshare.app', config.androidCert],
-    ['ma.garageshare.app.preview', config.previewCert]
+    ['com.garageshare.app', config.androidCert],
+    ['com.garageshare.app.preview', config.previewCert]
   ].filter(([, fingerprint]) => fingerprint).map(([packageName, fingerprint]) => {
     if (!/^(?:[a-f0-9]{2}:){31}[a-f0-9]{2}$/i.test(fingerprint)) {
       throw new Error('Use a colon-separated SHA-256 Android signing certificate fingerprint.');
